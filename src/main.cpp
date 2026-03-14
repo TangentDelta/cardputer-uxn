@@ -22,6 +22,11 @@ char uxn_rom_name[20];
 
 unsigned long last_update = 0;
 
+/*
+Quick and dirty Uxn ROM loader
+Attempts to open a file from the SD card and read its
+contents into the provided Uxn core
+*/
 void load_rom_file(const char *file_name, Uxn *u)
 {
     File f = sd_card_handler.open(file_name, "r");
@@ -44,6 +49,10 @@ void load_rom_file(const char *file_name, Uxn *u)
     f.close();
 }
 
+/*
+Placeholder CLI processor
+Quick and dirty, and I really hate it.
+*/
 void cli_process_buffer()
 {
     bool loading_args = false;
@@ -61,24 +70,27 @@ void cli_process_buffer()
                 {
                     if(cli_buffer[i-1] == '|')
                     {
-                        // Handle pipe operation
+                        // Todo: handle pipe operation
                         continue;
                     }
                 }
 
                 if(!loading_args)
                 {
-                    uxn_rom_name[0] = '/';
-                    memcpy(uxn_rom_name+1, cli_buffer+word_start, word_size);
-                    strcpy(uxn_rom_name+word_size+1, ".rom");
-                    terminal.print(uxn_rom_name);
-                    if(sd_card_handler.exists(uxn_rom_name))
+                    if(word_size-4 < 16)
                     {
-                        load_rom_file(uxn_rom_name, &uxn);
-                        rom_loaded = true;
+                        uxn_rom_name[0] = '/';
+                        memcpy(uxn_rom_name+1, cli_buffer+word_start, word_size);
+                        strcpy(uxn_rom_name+word_size+1, ".rom");
+                        terminal.print(uxn_rom_name);
+                        if(sd_card_handler.exists(uxn_rom_name))
+                        {
+                            load_rom_file(uxn_rom_name, &uxn);
+                            rom_loaded = true;
+                        }
+                        else
+                            terminal.print("\nFile not found\n");
                     }
-                    else
-                        terminal.print("\nFile not found\n");
                 }
 
             }
@@ -94,9 +106,10 @@ void cli_process_buffer()
     }
 }
 
+// Called by the terminal when a key is pressed
 void cli_on_key(const uint8_t c)
 {
-    terminal.cwrite(c);
+    terminal.cwrite(c); // Echo it back
 
     switch(c)
     {
@@ -121,7 +134,6 @@ void setup()
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
 
-
     // Set up the screen and the terminal
     canvas = new LGFX_Sprite(&M5Cardputer.Display);
     canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
@@ -130,10 +142,8 @@ void setup()
     // Initialize the SD card handler
     sd_card_handler.begin();
 
+    // Point the Uxn core's console output at the terminal's input
     uxn.set_deo_callback(0x18, [](uint8_t value){terminal.cwrite(value);});
-    //uxn.load(hello_rom, sizeof(hello_rom));
-
-    //uxn.eval(0x100);
 }
 
 void loop()
