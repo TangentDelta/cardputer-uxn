@@ -135,16 +135,6 @@ void Terminal::_handle_cursor()
 
     if(_cursor_row >= ROWS)
     {
-        /*
-        for(int i = 0; i < (COLUMNS*ROWS)-COLUMNS; i++)
-        {
-            _char_buffer[i] = _char_buffer[i+COLUMNS];
-        }
-
-        for(int i = 0; i < COLUMNS; i++)
-        {
-            _char_buffer[i+((COLUMNS*ROWS)-COLUMNS)] = ' ';
-        }*/
         memcpy(_char_buffer, _char_buffer+COLUMNS, (COLUMNS*ROWS)-COLUMNS);
         _cursor_row = ROWS-1;
     }
