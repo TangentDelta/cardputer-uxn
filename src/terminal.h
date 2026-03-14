@@ -13,10 +13,12 @@
 #define FONT_WIDTH 8
 #define CURSOR_BLINK_TIME 200
 
+using OnKeyboardCallback = std::function<void(const uint8_t)>;
+
 class Terminal
 {
 public:
-    void begin(LGFX_Sprite* canvas);
+    void begin(LGFX_Sprite* canvas, OnKeyboardCallback keyboard_callback);
     void update();
     void cwrite(const char c);
     void print(const char *s);
@@ -29,6 +31,8 @@ protected:
     uint8_t _cursor_row = 0;
     uint8_t _cursor_col = 0;
     bool _dirty = false;    // Has the character buffer been modified since the last update?
+
+    OnKeyboardCallback _on_keyboard = nullptr;
 
     void _render_terminal();
     void _handle_cursor();  // Handle newline wrapping and scrolling the character buffer

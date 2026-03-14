@@ -95,6 +95,16 @@ void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
     }
 }
 
+void Uxn::mem_poke(uint16_t addr, uint8_t value)
+{
+	_ram[addr] = value;
+}
+
+uint8_t Uxn::mem_peek(uint16_t addr)
+{
+	return _ram[addr];
+}
+
 uint8_t Uxn::_dei(const uint8_t port)
 {
     switch(port)

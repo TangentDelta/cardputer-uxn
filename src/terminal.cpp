@@ -1,8 +1,12 @@
 #include "terminal.h"
 
-void Terminal::begin(LGFX_Sprite* canvas)
+void Terminal::begin(LGFX_Sprite* canvas, OnKeyboardCallback keyboard_callback)
 {
+    // Assign member variables
     _canvas = canvas;
+    _on_keyboard = keyboard_callback;
+
+    // Prepare the initial terminal state
     clear();
     _render_terminal();
     _dirty = false;
@@ -10,6 +14,38 @@ void Terminal::begin(LGFX_Sprite* canvas)
 
 void Terminal::update()
 {
+    // First check the keyboard
+    // The idea being, if we have a key and call the callback,
+    // the callback may want to immediately echo the character back to us
+    if(_on_keyboard)
+    {
+        if(M5Cardputer.Keyboard.isChange())
+        {
+            if(M5Cardputer.Keyboard.isPressed())
+            {
+                Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+
+                // Process pressed special keys
+                if(status.del)
+                    _on_keyboard('\b');
+                if(status.enter)
+                    _on_keyboard('\n');
+
+                // Process pressed keys
+                for(auto c : status.word)
+                {
+                    if(status.ctrl)
+                    {
+                        c &= 0x1f;
+                    }
+
+                    _on_keyboard(c);
+                }
+            }
+        }
+    }
+
+
     unsigned long now = millis();
     if((now - _last_blink) > CURSOR_BLINK_TIME)
     {
@@ -40,6 +76,19 @@ void Terminal::cwrite(const char c)
             break;
         case '\r':
             _cursor_col = 0;
+            break;
+        case '\b':
+            if(_cursor_col > 0)
+                _cursor_col--;
+            else
+            {
+                if(_cursor_row > 0)
+                {
+                    _cursor_col = COLUMNS-1;
+                    _cursor_row--;
+                }
+            }
+            _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ';
             break;
         default:
             // Anything else, just write the character to the buffer
