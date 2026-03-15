@@ -68,6 +68,15 @@ void Terminal::update()
 
 void Terminal::cwrite(const char c)
 {
+    // If we're reading in the characters for an escape sequence, don't do anything else
+    // but handle processing the escape sequence
+    if(_escape_sequence)
+    {
+        _escape_sequence_cwrite(c);
+        return;
+    }
+
+    // Not in an escape dequence, just handle the character normally
     _dirty = true;  // Flag the character buffer as being modified
     switch(c)
     {
@@ -93,6 +102,10 @@ void Terminal::cwrite(const char c)
                 }
             }
             _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ';
+            break;
+        case '\033':    // Escape
+            _escape_sequence = true;
+            _escape_buffer_index = 0;
             break;
         default:
             // Anything else, just write the character to the buffer
@@ -141,6 +154,7 @@ void Terminal::_handle_cursor()
     {
         memcpy(_char_buffer, _char_buffer+COLUMNS, (COLUMNS*ROWS)-COLUMNS);
         _cursor_row = ROWS-1;
+        memset(_char_buffer+((COLUMNS*ROWS)-COLUMNS), ' ', COLUMNS);
     }
 }
 
@@ -169,4 +183,39 @@ void Terminal::_render_terminal()
     _canvas->drawRect(_cursor_col*FONT_WIDTH, _cursor_row*FONT_HEIGHT, FONT_WIDTH, FONT_HEIGHT);
 
     _canvas->pushSprite(0, 0);
+}
+
+void Terminal::_escape_sequence_cwrite(const char c)
+{
+    if(_escape_buffer_index == 0)
+    {
+        // Single-character escape codes, no need to buffer them
+        switch(c)
+        {
+            case '7':   // savecursor
+                _cursor_col_mem = _cursor_col;
+                _cursor_row_mem = _cursor_row;
+                _escape_sequence = false;
+                return;
+                break;
+            case '8':   // restorecursor
+                _cursor_row = _cursor_row_mem;
+                _cursor_col = _cursor_col_mem;
+                _escape_sequence = false;
+                return;
+                break;
+        }
+
+        _escape_buffer[_escape_buffer_index++] = c;
+        return;
+    }
+
+    if((_escape_buffer_index > 0) && (_escape_buffer[0] == '['))
+    {
+        if(c)
+        switch(c)
+        {
+
+        }
+    }
 }

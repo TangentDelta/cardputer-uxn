@@ -27,20 +27,29 @@ public:
 protected:
     LGFX_Sprite* _canvas         = nullptr;
 
+    // Keyboard
     unsigned long _last_keypress = 0;
 
+    // Cursor
     unsigned long _last_blink = 0;
     bool _cursor_blink = false;
+    uint8_t _cursor_row = 0;
+    uint8_t _cursor_col = 0;
+    uint8_t _cursor_row_mem = 0;
+    uint8_t _cursor_col_mem = 0;
 
+    // Character buffer
     char _char_buffer[COLUMNS * ROWS];
     bool _dirty = false;    // Has the character buffer been modified since the last update?
 
-    uint8_t _cursor_row = 0;
-    uint8_t _cursor_col = 0;
-    
+    // Escape sequence handling
+    bool _escape_sequence = false;
+    char _escape_buffer_index = 0;
+    char _escape_buffer[8];
 
     OnKeyboardCallback _on_keyboard = nullptr;
 
     void _render_terminal();
     void _handle_cursor();  // Handle newline wrapping and scrolling the character buffer
+    void _escape_sequence_cwrite(const char c);
 };
