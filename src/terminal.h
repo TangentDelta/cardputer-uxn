@@ -12,6 +12,7 @@
 #define FONT_HEIGHT 8
 #define FONT_WIDTH 8
 #define CURSOR_BLINK_TIME 200
+#define KEYBOARD_UPDATE_INTERVAL 100
 
 using OnKeyboardCallback = std::function<void(const uint8_t)>;
 
@@ -25,12 +26,18 @@ public:
     void clear(const char c = ' ');
 protected:
     LGFX_Sprite* _canvas         = nullptr;
+
+    unsigned long _last_keypress = 0;
+
     unsigned long _last_blink = 0;
     bool _cursor_blink = false;
+
     char _char_buffer[COLUMNS * ROWS];
+    bool _dirty = false;    // Has the character buffer been modified since the last update?
+
     uint8_t _cursor_row = 0;
     uint8_t _cursor_col = 0;
-    bool _dirty = false;    // Has the character buffer been modified since the last update?
+    
 
     OnKeyboardCallback _on_keyboard = nullptr;
 

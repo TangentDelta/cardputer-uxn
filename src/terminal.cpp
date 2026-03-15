@@ -19,7 +19,9 @@ void Terminal::update()
     // the callback may want to immediately echo the character back to us
     if(_on_keyboard)
     {
-        if(M5Cardputer.Keyboard.isChange())
+        unsigned long now = millis();
+
+        if(((now - _last_keypress) > KEYBOARD_UPDATE_INTERVAL) && M5Cardputer.Keyboard.isChange())
         {
             if(M5Cardputer.Keyboard.isPressed())
             {
@@ -42,6 +44,8 @@ void Terminal::update()
                     _on_keyboard(c);
                 }
             }
+
+            _last_keypress = now;
         }
     }
 
