@@ -1,5 +1,25 @@
 #include "uxn.h"
 
+Uxn::Uxn(const int ram_size, const int stack_size)
+{
+	_ram_size = ram_size;
+	_stack_size = stack_size;
+	_ram_mask = ram_size-1;
+	_stack_mask = stack_size-1;
+
+	// Allocate heap memory for the VM
+	_ram = (uint8_t*)malloc(ram_size * sizeof(uint8_t));
+	_stk[0] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
+	_stk[1] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
+}
+
+Uxn::~Uxn()
+{
+	free(_ram);
+	free(_stk[0]);
+	free(_stk[1]);
+}
+
 /*
 Copyright (c) 2026 Devine Lu Linvega
 
@@ -20,9 +40,9 @@ WITH REGARD TO THIS SOFTWARE.
 	case 0xa0|opc: {const uint8_t d=1,r=0,k=_ptr[0];A _ptr[0]=k;B} break;\
 	case 0xc0|opc: {const uint8_t d=0,r=1,k=_ptr[1];A _ptr[1]=k;B} break;\
 	case 0xe0|opc: {const uint8_t d=1,r=1,k=_ptr[1];A _ptr[1]=k;B} break;}
-#define DEC(m) _stk[m][--_ptr[m]]
-#define INC(m) _stk[m][_ptr[m]++]
-#define IMM a = _ram[pc++] << 8, a |= _ram[pc++];
+#define DEC(m) _stk[m][--_ptr[m] & _stack_mask]
+#define INC(m) _stk[m][_ptr[m]++ & _stack_mask]
+#define IMM a = _ram[pc++ & _ram_mask] << 8, a |= _ram[pc++ & _ram_mask];
 #define MOV pc = d ? (uint16_t)a : pc + (int8_t)a;
 #define POx(o,m) o = DEC(r); if(m) o |= DEC(r) << 8;
 #define PUx(i,m,s) if(m) c = (i), INC(s) = c >> 8, INC(s) = c; else INC(s) = i;
@@ -30,23 +50,23 @@ WITH REGARD TO THIS SOFTWARE.
 #define PUT(i,s) INC(s) = i[0]; if(d) INC(s) = i[1];
 #define DEO(o,v) _deo(o, v[0]); if(d) _deo(o + 1, v[1]);
 #define DEI(i,v) v[0] = _dei(i); if(d) v[1] = _dei(i + 1); PUT(v,r)
-#define POK(o,v,m) _ram[o] = v[0]; if(d) _ram[(o + 1) & m] = v[1];
-#define PEK(i,v,m) v[0] = _ram[i]; if(d) v[1] = _ram[(i + 1) & m]; PUT(v,r)
+#define POK(o,v,m) _ram[o & _ram_mask] = v[0]; if(d) _ram[(o + 1) & m & _ram_mask] = v[1];
+#define PEK(i,v,m) v[0] = _ram[i & _ram_mask]; if(d) v[1] = _ram[(i + 1) & m & _ram_mask]; PUT(v,r)
 
 unsigned int Uxn::eval(uint16_t pc)
 {
 	unsigned int a, b, c;
 	uint16_t x[2], y[2], z[2];
 	for(;;)
-	switch(_ram[pc++]) {
+	switch(_ram[pc++ & _ram_mask]) {
 	case 0x00: return 1;
 	case 0x20: if(DEC(0)) { IMM pc += a; } else pc += 2; break;
 	case 0x40: IMM pc += a; break;
 	case 0x60: IMM PUx(pc, 1, 1) pc += a; break;
-	case 0xa0: INC(0) = _ram[pc++]; /* fall-through */
-	case 0x80: INC(0) = _ram[pc++]; break;
-	case 0xe0: INC(1) = _ram[pc++]; /* fall-through */
-	case 0xc0: INC(1) = _ram[pc++]; break;
+	case 0xa0: INC(0) = _ram[pc++ & _ram_mask]; /* fall-through */
+	case 0x80: INC(0) = _ram[pc++ & _ram_mask]; break;
+	case 0xe0: INC(1) = _ram[pc++ & _ram_mask]; /* fall-through */
+	case 0xc0: INC(1) = _ram[pc++ & _ram_mask]; break;
 	OPC(0x01,POx(a,d),PUx(a+1,d,r))
 	OPC(0x02,_ptr[r] -= 1+d;,{})
 	OPC(0x03,GOT(x) _ptr[r] -= 1+d;,PUT(x,r))
@@ -83,7 +103,9 @@ unsigned int Uxn::eval(uint16_t pc)
 
 void Uxn::load(const uint8_t *rom, int count)
 {
-    memcpy(&_ram[0x100], rom, count);
+	if(count < (_ram_size-0x100))
+    	memcpy(&_ram[0x100], rom, count);
+	// Else handle trying to load a ROM that is too large...
 }
 
 void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
@@ -97,12 +119,12 @@ void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
 
 void Uxn::mem_poke(uint16_t addr, uint8_t value)
 {
-	_ram[addr] = value;
+	_ram[addr & _ram_mask] = value;
 }
 
 uint8_t Uxn::mem_peek(uint16_t addr)
 {
-	return _ram[addr];
+	return _ram[addr & _ram_mask];
 }
 
 uint8_t Uxn::_dei(const uint8_t port)
