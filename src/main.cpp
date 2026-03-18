@@ -167,13 +167,10 @@ Shell buffer processor
 */
 void shell_process_buffer()
 {
-    bool loading_args = false;  // Set when a program name has been encountered
-    bool space_skip = true; // Ignore space characters
     char shell_word[20];
     char shell_word_index = 0;
     uint8_t arg_stack_index = 0;
     char *arg_stack[16];
-    
     
     shell_lexer_state = IDLE;
     shell_buffer_index = 0;
