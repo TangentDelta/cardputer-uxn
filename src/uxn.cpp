@@ -113,7 +113,9 @@ void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
     switch(port)
     {
         case 0x18:  // Console - Write
-            _cons_write = port_callback;
+            _console_write = port_callback; break;
+		case 0x19:	// Console - error
+			_console_error = port_callback; break;
     }
 }
 
@@ -127,23 +129,42 @@ uint8_t Uxn::mem_peek(uint16_t addr)
 	return _ram[addr & _ram_mask];
 }
 
+/*
+Call the Uxn instance's console vector with the specified value
+Optionally provide the value type as well
+*/
+void Uxn::console_vector(uint8_t value, ConsoleType value_type)
+{
+	_devices[0x12] = value;
+	_devices[0x17] = value_type;
+	uint16_t console_vector_ptr = _devices[0x10]<<8;
+	console_vector_ptr |= _devices[0x11];
+	if(console_vector_ptr != 0)
+		eval(console_vector_ptr);
+}
+
 uint8_t Uxn::_dei(const uint8_t port)
 {
-    switch(port)
-    {
-        default:
-            return 0;
-            break;
-    }
+	return _devices[port];
 }
 
 void Uxn::_deo(const uint8_t port, const uint8_t value)
 {
+	_devices[port] = value;
     switch(port)
     {
+		case 0x10:	// Console - Vector
+		case 0x11:
+			alive = true;	// Mark this Uxn instance as alive and having a vector
+			break;
         case 0x18:  // Console - Write
-            if(_cons_write)
-                _cons_write(value);
+            if(_console_write)
+                _console_write(value);
+			return;
+		case 0x19:	// Console - Error
+			if(_console_error)
+				_console_error(value);
+			return;
         default:
             break;
     }
