@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <sd_card_handler.h>
 #pragma once
 
 enum ConsoleType
@@ -34,6 +35,9 @@ public:
     void console_vector(uint8_t value, ConsoleType value_type = ConsoleType::type_stdin);
     void console_stdin(uint8_t value){ console_vector(value); };
 
+    /* File Device */
+    SDCardHandler sd_card_handler;
+
     bool alive = false; // The Uxn instance defaults to being dead. Setting a vector sets this to true.
 protected:
     /* Core */
@@ -55,4 +59,12 @@ protected:
     /* Console Device */
     UxnDeviceCallback _console_write = nullptr; // Callback called when the Uxn instance writes to the console device
     UxnDeviceCallback _console_error = nullptr; // Callback called when the Uxn instance writes to the console error device
+
+    /* File Device */
+    uint16_t _file_ptr;
+    File _file_handle[2];
+    const char *_get_filename(uint8_t *device);    // Get the filename from File/name*
+    void _file_read(uint8_t *device, uint8_t file_index);
+    void _file_write(uint8_t *device, uint8_t file_index);
+    void _file_dir_content(uint8_t *device, uint8_t file_index);
 };

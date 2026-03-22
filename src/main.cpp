@@ -89,6 +89,10 @@ Uxn *load_rom(const char *rom_name)
 
     f.close();
 
+    // Give the new Uxn instance a reference to the SD card handler
+    // This will eventually be a more general filesystem handler...
+    u->sd_card_handler = sd_card_handler;
+
     return u;
 }
 

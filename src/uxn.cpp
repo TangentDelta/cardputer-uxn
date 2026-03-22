@@ -11,6 +11,8 @@ Uxn::Uxn(const int ram_size, const int stack_size)
 	_ram = (uint8_t*)malloc(ram_size * sizeof(uint8_t));
 	_stk[0] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
 	_stk[1] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
+
+	memset(_ram, 0, ram_size);
 }
 
 Uxn::~Uxn()
@@ -143,6 +145,104 @@ void Uxn::console_vector(uint8_t value, ConsoleType value_type)
 		eval(console_vector_ptr);
 }
 
+// Get the null-terminated string pointed at by File/name*
+const char *Uxn::_get_filename(uint8_t *device)
+{
+	uint16_t addr = device[0x8] << 8;
+	addr |= device[0x9];
+	const char* file_name = (char*)_ram+addr;
+
+	// If the file name pointed at isn't null-terminated, make sure we clamp the size and return an empty file name
+	if(strlen(file_name) > 64)
+		return "";
+
+	return file_name;
+}
+
+// Attempt to read a file from the filesystem
+void Uxn::_file_read(uint8_t *device, uint8_t file_index)
+{
+	File *file_handle = &_file_handle[file_index];
+
+	if(!*file_handle)
+		*file_handle = sd_card_handler.open(_get_filename(device), "r");
+
+	// Can the file be opened?
+	if(!*file_handle)
+	{
+		// No, set the number of read bytes to 0 and return
+		device[2] = 0;
+		device[3] = 0;
+		return;
+	}
+
+	// Is this actually a directory?
+	if(file_handle->isDirectory())
+	{
+		// Populate the destination with the directory table
+		_file_dir_content(device, file_index);
+		return;
+	}
+
+}
+
+void Uxn::_file_write(uint8_t *device, uint8_t file_index)
+{
+	
+}
+
+void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
+{
+	// This assumes that _file_handle[file_index] is not null, and points at a directory!
+
+	// Set some variables with data from the device
+	uint16_t buffer_length = device[0xa] << 8;
+	buffer_length |= device[0xb];
+	uint16_t dest_addr = device[0xc] << 8;
+	dest_addr |= device[0xd];
+
+	// Directory listing variables
+	uint16_t bytes_written = 0;
+	char dir_entry_buffer[32];
+
+	File *file_handle = &_file_handle[file_index];	// De-reference the file handle for this device so we can use it...
+
+	File f = file_handle->openNextFile();
+	while(f)
+	{
+		if(f.isDirectory())
+			snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "---- %.25s/\n", f.name());
+		else
+		{
+			unsigned long file_size = f.size();
+			if(file_size > 0xffff)
+				snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "???? %.26s\n", f.name());
+			else
+				snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "%04x %.26s\n", file_size, f.name());
+		}
+
+
+		for(int i=0; i < 32; i++)
+		{
+			if(bytes_written < buffer_length)
+			{
+				char c = dir_entry_buffer[i];
+				if(c == '\0')
+					break;
+				_ram[dest_addr+(bytes_written++)] = c;
+			}
+			else
+			{
+				f.close();
+				return;
+			}
+			
+		}
+
+		f = file_handle->openNextFile();
+	}
+}
+
 uint8_t Uxn::_dei(const uint8_t port)
 {
 	return _devices[port];
@@ -165,6 +265,10 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 			if(_console_error)
 				_console_error(value);
 			return;
+		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
+		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
+		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File A read
+		case 0xbf: _file_write(_devices+0xb0, 1); break;	// File B write
         default:
             break;
     }
