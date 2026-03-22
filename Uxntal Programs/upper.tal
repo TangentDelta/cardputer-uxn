@@ -1,0 +1,13 @@
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+
+|100
+@on-reset ( -> )
+  ;on-console .Console/vector DEO2
+  BRK
+
+@on-console ( -> )
+  .Console/read DEI
+  DUP #60 SUB
+  #1a LTH
+  #50 SFT SUB .Console/write DEO
+  BRK

@@ -1,0 +1,23 @@
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+|a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+|b0 @File2/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+
+|100
+@on-reset ( -> )
+  dir/print-dir
+  BRK
+
+@dir/print-dir ( -> )
+  ;dir/name .File1/name DEO2
+  #ff .File1/length DEO2
+  ;dir/read-buf .File1/read DEO2
+  ;dir/read-buf str/<print>
+  JMP2r
+
+@str/<print> ( str* -- )
+	LDAk DUP ?{ POP POP2 JMP2r }
+	.Console/write DEO
+	INC2 !/<print>
+
+@dir/name "/ $1
+@dir/read-buf $100
