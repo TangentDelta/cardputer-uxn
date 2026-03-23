@@ -164,6 +164,7 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 {
 	File *file_handle = &_file_handle[file_index];
 
+	// If this file handle hasn't been set up yet, try opening the file for reading
 	if(!*file_handle)
 		*file_handle = sd_card_handler.open(_get_filename(device), "r");
 
@@ -184,6 +185,37 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 		return;
 	}
 
+	// This code feels redundant with _file_dir_content...
+	// TODO: Can this code be consolidated?
+	uint16_t buffer_length = device[0xa] << 8;
+	buffer_length |= device[0xb];
+	uint16_t dest_addr = device[0xc] << 8;
+	dest_addr |= device[0xd];
+	uint16_t bytes_written = 0;
+
+	while(file_handle->available())
+	{
+		if(bytes_written < buffer_length)
+		{
+			char c = file_handle->read();
+			_ram[dest_addr+bytes_written] = c;
+			bytes_written++;
+		}
+		else
+		{
+			// Ran out of buffer. Report how many bytes we wrote and return
+			// This will keep the file_handle open for future reading
+			device[2] = bytes_written>>8;
+			device[3] = bytes_written&0xff;
+			return;
+		}
+	}
+	// If we're here, the file ran out of bytes for us
+
+	// Report how many bytes we were able to read
+	device[2] = bytes_written>>8;
+	device[3] = bytes_written&0xff;
+	file_handle->close();	// Close the handle
 }
 
 void Uxn::_file_write(uint8_t *device, uint8_t file_index)
@@ -233,6 +265,8 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 			}
 			else
 			{
+				device[2] = bytes_written>>8;
+				device[3] = bytes_written&0xff;
 				f.close();
 				return;
 			}
@@ -241,6 +275,10 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 
 		f = file_handle->openNextFile();
 	}
+
+	f.close();
+	device[2] = bytes_written>>8;
+	device[3] = bytes_written&0xff;
 }
 
 uint8_t Uxn::_dei(const uint8_t port)
