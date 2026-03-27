@@ -359,6 +359,8 @@ void shell_key_handler(const uint8_t c)
         case('\b'):
             if(shell_buffer_index > 0)
                 shell_buffer[--shell_buffer_index] = '\0';
+            else
+                terminal.cwrite(' ');   // Stop the terminal from backspacing past the prompt
             break;
         case('\n'):
             shell_process_buffer();
