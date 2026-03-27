@@ -303,8 +303,10 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 			if(_console_error)
 				_console_error(value);
 			return;
+		case 0xa9: if(_file_handle[0]) _file_handle[0].close(); break; // File A name (closes file handle A)
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
 		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
+		case 0xb9: if(_file_handle[1]) _file_handle[1].close(); break; // File B name (closes file handle B)
 		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File A read
 		case 0xbf: _file_write(_devices+0xb0, 1); break;	// File B write
         default:
