@@ -406,7 +406,9 @@ void setup()
     // Initialize the SD card handler
     sd_card_handler.begin();
 
-    terminal.print("Cardputer Uxn Environment\n");
+    terminal.print("Cucumber ");
+    terminal.print(GIT_COMMIT);
+    terminal.print("\nCardputer Uxn Environment\n");
     shell_print_prompt();
 }
 
