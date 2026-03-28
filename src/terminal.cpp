@@ -195,9 +195,10 @@ Private Methods
             _canon_send();
             break;
         case('\b'):
-            cwrite(' ');    // Replace the character the screen just deleted (since it was sent a backspace)
             if(_canon_index > 0)
                 _canon_index--;
+            else
+                cwrite(' ');    // Replace the character the screen just deleted (since it was sent a backspace)
                 //_canon_buffer[--_canon_index] = '\0';   // Decrement the index and move the null terminator back
             break;
         case('\03'):  // ETX (ctrl-c))
