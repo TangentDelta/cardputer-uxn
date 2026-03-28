@@ -356,12 +356,6 @@ void shell_key_handler(const uint8_t c)
 
     switch(c)
     {
-        case('\b'):
-            if(shell_buffer_index > 0)
-                shell_buffer[--shell_buffer_index] = '\0';
-            else
-                terminal.cwrite(' ');   // Stop the terminal from backspacing past the prompt
-            break;
         case('\n'):
             shell_process_buffer();
             shell_buffer_index = 0;
@@ -408,6 +402,7 @@ void setup()
     canvas = new LGFX_Sprite(&M5Cardputer.Display);
     canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
     terminal.begin(canvas, [](const uint8_t c){shell_on_key(c);});
+    terminal.set_mode(TerminalFlag::FLAG_CANONICAL, true);
 
     // Initialize the SD card handler
     sd_card_handler.begin();
