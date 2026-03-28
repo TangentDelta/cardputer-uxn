@@ -352,8 +352,6 @@ Shell key handler
 */
 void shell_key_handler(const uint8_t c)
 {
-    terminal.cwrite(c); // Echo it back
-
     switch(c)
     {
         case('\n'):
@@ -381,6 +379,7 @@ void shell_on_key(const uint8_t c)
         if(c == '\03')  // ETX (ctrl-c)
         {
             release_uxn_instances();
+            terminal.cwrite('\n');
             shell_print_prompt();
             return;
         }
