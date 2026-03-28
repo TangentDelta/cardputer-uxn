@@ -6,12 +6,18 @@
 
 // These are based on the chosen font size and the screen size...
 // These should probably be compute automatically eventually
+#define SCREEN_DIMS_X 240
+#define SCREEN_DIMS_Y 135
 #define COLUMNS 30
-#define ROWS 15
+#define ROWS 16
 #define FONT_HEIGHT 8
 #define FONT_WIDTH 8
 #define CURSOR_BLINK_TIME 200
 #define KEYBOARD_UPDATE_INTERVAL 100
+
+// Customizations
+#define TERMINAL_COLOR_FG TFT_ORANGE
+#define TERMINAL_COLOR_BG TFT_BLACK
 
 using OnKeyboardCallback = std::function<void(const uint8_t)>;
 

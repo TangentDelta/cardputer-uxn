@@ -233,14 +233,14 @@ Private Methods
     }
  }
 
- // Render the character buffer to the TFT LCD
+ // Render the character buffer to the LCD
 void Terminal::_render_terminal()
 {
-    _canvas->fillScreen(TFT_BLACK);
+    _canvas->fillScreen(TERMINAL_COLOR_BG);
     _canvas->setFont(&fonts::Font8x8C64);
     _canvas->setTextSize(1);
-    _canvas->setBaseColor(TFT_BLACK);
-    _canvas->setTextColor(TFT_WHITE, TFT_BLACK);
+    _canvas->setBaseColor(TERMINAL_COLOR_BG);
+    _canvas->setTextColor(TERMINAL_COLOR_FG, TERMINAL_COLOR_BG);
 
     // Write each row to the display
     char row_buffer[COLUMNS+1];
@@ -255,7 +255,7 @@ void Terminal::_render_terminal()
     }
 
     // Now render the cursor
-    _canvas->setColor(_cursor_blink ? TFT_WHITE : TFT_BLACK);
+    _canvas->setColor(_cursor_blink ? TERMINAL_COLOR_FG : TERMINAL_COLOR_BG);
     _canvas->drawRect(_cursor_col*FONT_WIDTH, _cursor_row*FONT_HEIGHT, FONT_WIDTH, FONT_HEIGHT);
 
     _canvas->pushSprite(0, 0);
