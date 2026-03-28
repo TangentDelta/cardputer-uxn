@@ -2,8 +2,7 @@
 
 #include <M5Cardputer.h>
 
-#define INPUT_LINE_WIDTH 256
-#define PROMPT "> "
+#define CANONICAL_BUFFER_SIZE 256
 
 // These are based on the chosen font size and the screen size...
 // These should probably be compute automatically eventually
@@ -16,6 +15,11 @@
 
 using OnKeyboardCallback = std::function<void(const uint8_t)>;
 
+enum TerminalFlag
+{
+    FLAG_CANONICAL
+};
+
 class Terminal
 {
 public:
@@ -24,6 +28,9 @@ public:
     void cwrite(const char c);
     void print(const char *s);
     void clear(const char c = ' ');
+    void set_mode(TerminalFlag flag, bool flag_state);
+
+    bool flag_canon = false;
 protected:
     LGFX_Sprite* _canvas         = nullptr;
 
@@ -37,6 +44,14 @@ protected:
     uint8_t _cursor_col = 0;
     uint8_t _cursor_row_mem = 0;
     uint8_t _cursor_col_mem = 0;
+
+    // Canonical mode
+    // The canonical mode buffer. It receives characters from the keyboard and immediately echos them.
+    // The top bytes is reserved for a null terminator, and the top-1 byte is reserved for a newline character.
+    char _canon_buffer[CANONICAL_BUFFER_SIZE+1];
+    uint16_t _canon_index = 0;
+    void _canon_on_key(char c);
+    void _canon_send();
 
     // Character buffer
     char _char_buffer[COLUMNS * ROWS];
