@@ -1,0 +1,29 @@
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+
+|100
+@on-reset ( -> )
+	;on-console .Console/vector DEO2
+	BRK
+
+@on-console ( -> )
+	.Console/read DEI
+	write-hex-byte
+	#3a .Console/write DEO
+	.Console/type DEI
+	write-hex-byte
+	#20 .Console/write DEO
+	BRK
+
+
+( Print the value n to the console as two ASCII digits )
+@write-hex-byte ( n -- )
+	DUP #04 SFT write-hex-nybble
+	( Fall through into writing the low nybble )
+
+( Print the value n to the console as a single ASCII digit )
+@write-hex-nybble ( n -- )
+	#0f AND	( Mask the nybble off )
+	#30 ORA ( Shift up to '0'-'9' )
+	DUP #39 GTH #07 MUL ADD ( A-F? Add 7 for 'A'-'F' )
+	.Console/write DEO ( Output it )
+	JMP2r
