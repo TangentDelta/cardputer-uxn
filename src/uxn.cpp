@@ -17,6 +17,13 @@ Uxn::Uxn(const int ram_size, const int stack_size)
 
 Uxn::~Uxn()
 {
+	// Free up the file handles
+	if(_file_handle[0])
+		_file_handle[0].close();
+	if(_file_handle[1])
+		_file_handle[1].close();
+	
+	// Free up the heap memory that we allocated
 	free(_ram);
 	free(_stk[0]);
 	free(_stk[1]);
@@ -60,47 +67,51 @@ unsigned int Uxn::eval(uint16_t pc)
 	unsigned int a, b, c;
 	uint16_t x[2], y[2], z[2];
 	for(;;)
-	switch(_ram[pc++ & _ram_mask]) {
-	case 0x00: return 1;
-	case 0x20: if(DEC(0)) { IMM pc += a; } else pc += 2; break;
-	case 0x40: IMM pc += a; break;
-	case 0x60: IMM PUx(pc, 1, 1) pc += a; break;
-	case 0xa0: INC(0) = _ram[pc++ & _ram_mask]; /* fall-through */
-	case 0x80: INC(0) = _ram[pc++ & _ram_mask]; break;
-	case 0xe0: INC(1) = _ram[pc++ & _ram_mask]; /* fall-through */
-	case 0xc0: INC(1) = _ram[pc++ & _ram_mask]; break;
-	OPC(0x01,POx(a,d),PUx(a+1,d,r))
-	OPC(0x02,_ptr[r] -= 1+d;,{})
-	OPC(0x03,GOT(x) _ptr[r] -= 1+d;,PUT(x,r))
-	OPC(0x04,GOT(x) GOT(y),PUT(x,r) PUT(y,r))
-	OPC(0x05,GOT(x) GOT(y) GOT(z),PUT(y,r) PUT(x,r) PUT(z,r))
-	OPC(0x06,GOT(x),PUT(x,r) PUT(x,r))
-	OPC(0x07,GOT(x) GOT(y),PUT(y,r) PUT(x,r) PUT(y,r))
-	OPC(0x08,POx(a,d) POx(b,d),PUx(b==a,0,r))
-	OPC(0x09,POx(a,d) POx(b,d),PUx(b!=a,0,r))
-	OPC(0x0a,POx(a,d) POx(b,d),PUx(b>a,0,r))
-	OPC(0x0b,POx(a,d) POx(b,d),PUx(b<a,0,r))
-	OPC(0x0c,POx(a,d),MOV)
-	OPC(0x0d,POx(a,d) POx(b,0),if(b) MOV)
-	OPC(0x0e,POx(a,d),PUx(pc,1,!r) MOV)
-	OPC(0x0f,GOT(x),PUT(x,!r))
-	OPC(0x10,POx(a,0),PEK(a,x,0xff))
-	OPC(0x11,POx(a,0) GOT(y),POK(a,y,0xff))
-	OPC(0x12,POx(a,0),PEK(pc+(int8_t)a,x,0xffff))
-	OPC(0x13,POx(a,0) GOT(y),POK(pc+(int8_t)a,y,0xffff))
-	OPC(0x14,POx(a,1),PEK(a,x,0xffff))
-	OPC(0x15,POx(a,1) GOT(y),POK(a,y,0xffff))
-	OPC(0x16,POx(a,0),DEI(a,x))
-	OPC(0x17,POx(a,0) GOT(y),DEO(a,y))
-	OPC(0x18,POx(a,d) POx(b,d),PUx(b+a,d,r))
-	OPC(0x19,POx(a,d) POx(b,d),PUx(b-a,d,r))
-	OPC(0x1a,POx(a,d) POx(b,d),PUx(b*a,d,r))
-	OPC(0x1b,POx(a,d) POx(b,d),PUx(a?b/a:0,d,r))
-	OPC(0x1c,POx(a,d) POx(b,d),PUx(b&a,d,r))
-	OPC(0x1d,POx(a,d) POx(b,d),PUx(b|a,d,r))
-	OPC(0x1e,POx(a,d) POx(b,d),PUx(b^a,d,r))
-	OPC(0x1f,POx(a,0) POx(b,d),PUx(b>>(a&0xf)<<(a>>4),d,r))
-	} return 0;   
+	{
+		uint8_t op = _ram[pc++ & _ram_mask];
+		switch(op) {
+		case 0x00: return 1;
+		case 0x20: if(DEC(0)) { IMM pc += a; } else pc += 2; break;
+		case 0x40: IMM pc += a; break;
+		case 0x60: IMM PUx(pc, 1, 1) pc += a; break;
+		case 0xa0: INC(0) = _ram[pc++ & _ram_mask]; /* fall-through */
+		case 0x80: INC(0) = _ram[pc++ & _ram_mask]; break;
+		case 0xe0: INC(1) = _ram[pc++ & _ram_mask]; /* fall-through */
+		case 0xc0: INC(1) = _ram[pc++ & _ram_mask]; break;
+		OPC(0x01,POx(a,d),PUx(a+1,d,r))
+		OPC(0x02,_ptr[r] -= 1+d;,{})
+		OPC(0x03,GOT(x) _ptr[r] -= 1+d;,PUT(x,r))
+		OPC(0x04,GOT(x) GOT(y),PUT(x,r) PUT(y,r))
+		OPC(0x05,GOT(x) GOT(y) GOT(z),PUT(y,r) PUT(x,r) PUT(z,r))
+		OPC(0x06,GOT(x),PUT(x,r) PUT(x,r))
+		OPC(0x07,GOT(x) GOT(y),PUT(y,r) PUT(x,r) PUT(y,r))
+		OPC(0x08,POx(a,d) POx(b,d),PUx(b==a,0,r))
+		OPC(0x09,POx(a,d) POx(b,d),PUx(b!=a,0,r))
+		OPC(0x0a,POx(a,d) POx(b,d),PUx(b>a,0,r))
+		OPC(0x0b,POx(a,d) POx(b,d),PUx(b<a,0,r))
+		OPC(0x0c,POx(a,d),MOV)
+		OPC(0x0d,POx(a,d) POx(b,0),if(b) MOV)
+		OPC(0x0e,POx(a,d),PUx(pc,1,!r) MOV)
+		OPC(0x0f,GOT(x),PUT(x,!r))
+		OPC(0x10,POx(a,0),PEK(a,x,0xff))
+		OPC(0x11,POx(a,0) GOT(y),POK(a,y,0xff))
+		OPC(0x12,POx(a,0),PEK(pc+(int8_t)a,x,0xffff))
+		OPC(0x13,POx(a,0) GOT(y),POK(pc+(int8_t)a,y,0xffff))
+		OPC(0x14,POx(a,1),PEK(a,x,0xffff))
+		OPC(0x15,POx(a,1) GOT(y),POK(a,y,0xffff))
+		OPC(0x16,POx(a,0),DEI(a,x))
+		OPC(0x17,POx(a,0) GOT(y),DEO(a,y))
+		OPC(0x18,POx(a,d) POx(b,d),PUx(b+a,d,r))
+		OPC(0x19,POx(a,d) POx(b,d),PUx(b-a,d,r))
+		OPC(0x1a,POx(a,d) POx(b,d),PUx(b*a,d,r))
+		OPC(0x1b,POx(a,d) POx(b,d),PUx(a?b/a:0,d,r))
+		OPC(0x1c,POx(a,d) POx(b,d),PUx(b&a,d,r))
+		OPC(0x1d,POx(a,d) POx(b,d),PUx(b|a,d,r))
+		OPC(0x1e,POx(a,d) POx(b,d),PUx(b^a,d,r))
+		OPC(0x1f,POx(a,0) POx(b,d),PUx(b>>(a&0xf)<<(a>>4),d,r))
+		}
+	}
+	return 0;   
 }
 
 void Uxn::load(const uint8_t *rom, int count)
@@ -215,7 +226,6 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 	// Report how many bytes we were able to read
 	device[2] = bytes_written>>8;
 	device[3] = bytes_written&0xff;
-	file_handle->close();	// Close the handle
 }
 
 void Uxn::_file_write(uint8_t *device, uint8_t file_index)
@@ -291,6 +301,8 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 	_devices[port] = value;
     switch(port)
     {
+		case 0x0f:	// System - State
+			alive = value != 0; break;
 		case 0x10:	// Console - Vector
 		case 0x11:
 			alive = true;	// Mark this Uxn instance as alive and having a vector
