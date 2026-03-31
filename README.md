@@ -1,4 +1,4 @@
-# Cardputer Uxn
+# Cucumber - Cardputer Uxn
 
 It's [Uxn](https://wiki.xxiivv.com/site/uxn.html) running on an [M5Stack Card Computer](https://docs.m5stack.com/en/core/Cardputer)!
 
@@ -15,3 +15,7 @@ pio run --target upload
 ```
 
 The shell has no usability on its own and will need some .rom files on an SD card to do anything useful.
+
+## Terminal Customization
+
+The terminal's colors can be changed in `src/terminal.h` by modifying the defines for `TERMINAL_COLOR_FG` (forground color) and `TERMINAL_COLOR_BG` (background color). The default is amber on black.
