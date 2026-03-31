@@ -19,42 +19,39 @@
 	#04 EQUk ?/on-end POP
 	BRK
 
-@cat/on-arg ( type -- )
+@cat/on-arg ( type -> )
 	POP ( Get rid of the console type )
 	.Console/read DEI ( Grab the next argument character )
 	[ LIT2 &ptr =/path ] INC2k ,&ptr STR2 ( Increment the pointer into the path buffer )
 	STA BRK	( Store the character and stop executing )
 
-@cat/on-spacer ( type -- )
+@cat/on-end ( type -> )
+	#01 .&do-terminate STZ	( Set flag for termination when we're done )
+	( Fall through to on-spacer )
+
+@cat/on-spacer ( type -> )
 	POP ( Get rid of the console type )
 	#00 ;&ptr LDA STA	( Null-terminate the file path )
 	;/path ;&ptr STA2 ( Reset the pointer to the start of the path buffer )
 	!/read-file ( Read out the file to the console )
 
-@cat/on-end ( type -- )
-	POP ( Get rid of the console type )
-	#00 ;&ptr LDA STA	( Null-terminate the file path )
-	#01 .&do-terminate STZ
-	!/read-file
-
 @cat/read-file ( -> )
 	;/path .File1/name DEO2
-	!/output-file
 
 ( Loops until all chunks of the file are read out )
 @cat/output-file ( -> )
-	;/read-buf .File1/read DEO2 ( Read out a chunk )
-	.File1/success DEI2 DUP2
-	ORA ?{ ./do-terminate LDZ ?/terminate BRK }	( 0 chunks read, exit if this is the last file )
-	/output-buffer ( A chunk was read, output it )
+	;/chunk-buf .File1/read DEO2 ( Read out a chunk )
+	.File1/success DEI2
+	ORAk ?{ ./do-terminate LDZ ?/terminate BRK }	( 0 chunks read, exit if this is the last file )
+	/print-buffer ( A chunk was read, output it )
 	!/output-file ( Loop again )
 
 ( Outputs the contents of the read buffer to the console )
-@cat/output-buffer ( buffer_length -- )
-	[ LIT2 &read-ptr =/read-buf ] INC2k ,&read-ptr STR2
+@cat/print-buffer ( buffer_length -- )
+	[ LIT2 &read-ptr =/chunk-buf ] INC2k ,&read-ptr STR2
 	LDA .Console/write DEO
-	#0001 SUB2 DUP2 ?{ POP ;/read-buf ,&read-ptr STR2 JMP2r }
-	!/output-buffer
+	#0001 SUB2 ORAk ?{ POP2 ;/chunk-buf ,&read-ptr STR2 JMP2r }
+	!/print-buffer
 	
 ( End the program with an "okay" status )
 @cat/terminate ( -- )
@@ -63,4 +60,4 @@
 
 
 @cat/path "/ $64
-@cat/read-buf $100
+@cat/chunk-buf $100
