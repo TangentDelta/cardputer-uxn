@@ -280,13 +280,18 @@ void shell_process_buffer()
         for(int i = uxn_instance_index-1; i >= 0; i--)
         {
             Uxn *u = uxn_instances[i];
-            u->eval(0x100); // Process the reset vector
 
-            // Pass in the instance's arguments
             char *instance_args = arg_stack[i];
             // If the instance has no arguments, skip this instance
             if(instance_args == nullptr)
-                continue;
+            {
+                u->dev_poke(0x17, 0x00);    // Indicate to the VM that there are no arguments (null -> Console/type)
+                u->eval(0x100); // Process the reset vector
+                continue;   // Skip sending the args
+            }
+
+            u->dev_poke(0x17, 0x01);    // Indicate to the VM that there are args
+            u->eval(0x100); // Process the reset vector
 
             // TODO: This should get made into a lexer
             bool space_skip = true;    // Flag to skip redundant spaces
