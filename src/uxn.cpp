@@ -302,7 +302,7 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
     switch(port)
     {
 		case 0x0f:	// System - State
-			alive = value != 0; break;
+			alive = (value == 0); break;
 		case 0x10:	// Console - Vector
 		case 0x11:
 			alive = true;	// Mark this Uxn instance as alive and having a vector
