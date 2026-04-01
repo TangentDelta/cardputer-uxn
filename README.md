@@ -1,5 +1,7 @@
 # Cucumber - Cardputer Uxn
 
+![Running the command `cat /test.txt` and seeing "Hello, World!" on a console. Running another command `cat /test.txt | upper` and seeing "HELLO, WORLD!" on a console.](/assets/images/cardputer.png)
+
 It's [Uxn](https://wiki.xxiivv.com/site/uxn.html) running on an [M5Stack Card Computer](https://docs.m5stack.com/en/core/Cardputer)!
 
 This project is still in a very experimental (but slightly more usable) state. My end goal is to be able to poke around at Uxn on the go with a little hackable handheld device, and do "self-hosted" development.
