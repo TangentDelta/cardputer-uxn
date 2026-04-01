@@ -14,5 +14,8 @@ public:
     void begin();
     File open(const char *path, const char *mode);
     bool exists(const char *path);
+    char working_dir[128] = "/";
 protected:
+    uint8_t _path_separator = 0;
+    const char* _build_path(const char *path);
 };
