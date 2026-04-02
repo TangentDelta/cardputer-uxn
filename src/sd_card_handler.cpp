@@ -12,7 +12,7 @@ File SDCardHandler::open(const char *path, const char *mode)
     // Restore the working dir if it was modified
     if(_path_separator != 0)
     {
-        working_dir[_path_separator+1] = '\0';
+        working_dir[_path_separator] = '\0';
         _path_separator = 0;
     }
     return f;
@@ -24,7 +24,7 @@ bool SDCardHandler::exists(const char *path)
     // Restore the working dir if it was modified
     if(_path_separator != 0)
     {
-        working_dir[_path_separator+1] = '\0';
+        working_dir[_path_separator] = '\0';
         _path_separator = 0;
     }
     return b;

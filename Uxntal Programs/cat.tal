@@ -38,13 +38,13 @@
 @cat/read-file ( -> )
 	;/path .File1/name DEO2
 
-( Loops until all chunks of the file are read out )
-@cat/output-file ( -> )
-	;/chunk-buf .File1/read DEO2 ( Read out a chunk )
-	.File1/success DEI2
-	ORAk ?{ ./do-terminate LDZ ?/terminate BRK }	( 0 chunks read, exit if this is the last file )
-	/print-buffer ( A chunk was read, output it )
-	!/output-file ( Loop again )
+	( Loops until all chunks of the file are read out )
+	&read-file-loop
+		;/chunk-buf .File1/read DEO2 ( Read out a chunk )
+		.File1/success DEI2
+		ORAk ?{ ./do-terminate LDZ ?/terminate BRK }	( 0 chunks read, exit if this is the last file )
+		/print-buffer ( A chunk was read, output it )
+		!&read-file-loop ( Loop again )
 
 ( Outputs the contents of the read buffer to the console )
 @cat/print-buffer ( buffer_length -- )

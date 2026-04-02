@@ -55,7 +55,7 @@ Uxn *load_rom(const char *rom_name)
 
     // Construct the path for the ROM file to look for
     char rom_path[20];
-    snprintf(rom_path, 1+strlen(rom_name)+4+1, "/%s.rom", rom_name);
+    snprintf(rom_path, 1+strlen(rom_name)+4+1, "%s.rom", rom_name);
 
     if(!sd_card_handler.exists(rom_path))
         return nullptr;
