@@ -35,7 +35,7 @@ void Terminal::update()
 
                 // Process pressed special keys
                 if(status.del)
-                    c = '\b';
+                    c = (status.fn ? '\127' : '\b');    // Fn shifts between backsapce and delete
                 if(status.enter)
                     c = '\n';
 
@@ -51,15 +51,32 @@ void Terminal::update()
                 // Process pressed normal keys
                 for(auto c : status.word)
                 {
-                    // Control key modifier just masks the bottom 5 bits
-                    if(status.ctrl)
-                        c &= 0x1f;
-
-                    // Send the character
-                    if(flag_canon)
-                        _canon_on_key(c);
+                    if(status.fn)
+                    {
+                        switch(c)
+                        {
+                            case ';': _kb_print("\033[A"); break; // Up arrow
+                            case '.': _kb_print("\033[B"); break; // Down arrow
+                            case '/': _kb_print("\033[C"); break; // Right arrow
+                            case ',': _kb_print("\033[D"); break; // Left arrow
+                            case '`': _kb_print("\033"); break; // Escape
+                        }
+                    }
                     else
-                        _on_keyboard(c);
+                    {
+                        // Non-function key map
+
+                        // Control key modifier just masks the bottom 5 bits
+                        if(status.ctrl)
+                            c &= 0x1f;
+
+                        // Send the character
+                        if(flag_canon)
+                            _canon_on_key(c);
+                        else
+                            _on_keyboard(c);
+                    }
+
                 }
             }
 
@@ -184,6 +201,7 @@ Private Methods
 // Called by the keyboard handler if a key is pressed and the canonical mode flag is set
  void Terminal::_canon_on_key(char c)
  {
+    // TODO: Handle arrow keys for line editing, recalling previous canon buffer
     cwrite(c);  // Echo the char back to the screen
 
     // Newline, time to send the buffer out?
@@ -206,6 +224,8 @@ Private Methods
             _on_keyboard(c);
             break;
         default:
+            if(c < 0x20)
+                return; // Don't buffer unprintable characters
             // The buffer is actually CANONICAL_BUFFER_SIZE+1
             // 1 is subtracted to make room for the newline character...
             if(_canon_index < CANONICAL_BUFFER_SIZE-1)
@@ -275,6 +295,23 @@ void Terminal::_handle_cursor()
         memcpy(_char_buffer, _char_buffer+COLUMNS, (COLUMNS*ROWS)-COLUMNS);
         _cursor_row = ROWS-1;
         memset(_char_buffer+((COLUMNS*ROWS)-COLUMNS), ' ', COLUMNS);
+    }
+}
+
+void Terminal::_kb_print(const char *s)
+{
+    if(!_on_keyboard)
+        return;
+
+    if(flag_canon)
+    {
+        while(*s != '\0')
+            _canon_on_key(*(s++));
+    }
+    else
+    {
+        while(*s != '\0')
+            _on_keyboard(*(s++));
     }
 }
 
@@ -363,12 +400,10 @@ void Terminal::_send_cursor_position_response()
         return; // Why are we even here...
 
     char buf[32];
-    char *p = buf;
     
     // ESC[#;#R
     sprintf(buf, "\033[%d;%dR", _cursor_row, _cursor_col);
 
     // Send it out the keyboard
-    while(*p != '\0')
-        _on_keyboard(*(p++));
+    _kb_print(buf);
 }

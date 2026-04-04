@@ -80,6 +80,7 @@ protected:
 
     void _render_terminal();
     void _handle_cursor();  // Handle newline wrapping and scrolling the character buffer
+    void _kb_print(const char *s);    // Print a null-terminated string to the keyboard
     void _escape_sequence_cwrite(const char c);
     void _dispatch_escape_sequence(const char *params, char c);
     void _send_cursor_position_response();
