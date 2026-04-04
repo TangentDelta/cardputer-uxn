@@ -101,6 +101,12 @@ void terminal_cwrite(uint8_t value)
     terminal.cwrite(value);
 }
 
+// Sets the mode flags of the terminal based on the flag byte from Uxn
+void terminal_uxn_stty(uint8_t value)
+{
+    terminal.set_mode(TerminalFlag::FLAG_CANONICAL, (value && 0x40) == 0);
+}
+
 // Wires the Console I/O between Uxn instances
 void wire_uxn_instances()
 {
@@ -119,6 +125,10 @@ void wire_uxn_instances()
 
     // TODO: Wire up the first Uxn instance to the terminal's keyboard
 
+    // Set up the first instance for setting tty flags
+    uxn_instances[0]->dev_poke(0x16, 0x80);
+    uxn_instances[0]->set_deo_callback(0x16, terminal_uxn_stty);
+
     // Wire up the last instance to the terminal's screen
     uxn_instances[uxn_instance_index-1]->set_deo_callback(0x18, terminal_cwrite);
 }
@@ -127,10 +137,14 @@ void wire_uxn_instances()
 void release_uxn_instances()
 {
     // TODO: When I eventually add the file device, this needs to clean up floating file handles too
+    // Done! The Uxn instance destructor does this now
     for(int i = 0; i < uxn_instance_index; i++)
     {
         delete uxn_instances[i];
     }
+
+    // TODO: Give the terminal a "restore mode" method?
+    terminal.set_mode(TerminalFlag::FLAG_CANONICAL, true);
 
     uxn_instance_index = 0;
 }

@@ -59,6 +59,7 @@ protected:
     /* Console Device */
     UxnDeviceCallback _console_write = nullptr; // Callback called when the Uxn instance writes to the console device
     UxnDeviceCallback _console_error = nullptr; // Callback called when the Uxn instance writes to the console error device
+    UxnDeviceCallback _console_stty = nullptr;
 
     /* File Device */
     uint16_t _file_ptr;

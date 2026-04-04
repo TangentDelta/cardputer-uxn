@@ -173,14 +173,14 @@ const char *Uxn::_get_filename(uint8_t *device)
 // Attempt to read a file from the filesystem
 void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 {
-	File *file_handle = &_file_handle[file_index];
+	File& file_handle = _file_handle[file_index];
 
 	// If this file handle hasn't been set up yet, try opening the file for reading
-	if(!*file_handle)
-		*file_handle = sd_card_handler.open(_get_filename(device), "r");
+	if(!file_handle)
+		file_handle = sd_card_handler.open(_get_filename(device), "r");
 
 	// Can the file be opened?
-	if(!*file_handle)
+	if(!file_handle)
 	{
 		// No, set the number of read bytes to 0 and return
 		device[2] = 0;
@@ -189,7 +189,7 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 	}
 
 	// Is this actually a directory?
-	if(file_handle->isDirectory())
+	if(file_handle.isDirectory())
 	{
 		// Populate the destination with the directory table
 		_file_dir_content(device, file_index);
@@ -204,11 +204,11 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 	dest_addr |= device[0xd];
 	uint16_t bytes_written = 0;
 
-	while(file_handle->available())
+	while(file_handle.available())
 	{
 		if(bytes_written < buffer_length)
 		{
-			char c = file_handle->read();
+			char c = file_handle.read();
 			_ram[dest_addr+bytes_written] = c;
 			bytes_written++;
 		}
@@ -230,7 +230,10 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 
 void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 {
-	
+	File& file_handle = _file_handle[file_index];
+
+	if(!file_handle)
+		file_handle = sd_card_handler.open(_get_filename(device), "r");
 }
 
 void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
@@ -247,9 +250,9 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	uint16_t bytes_written = 0;
 	char dir_entry_buffer[32];
 
-	File *file_handle = &_file_handle[file_index];	// De-reference the file handle for this device so we can use it...
+	File& file_handle = _file_handle[file_index];	// De-reference the file handle for this device so we can use it...
 
-	File f = file_handle->openNextFile();
+	File f = file_handle.openNextFile();
 	while(f)
 	{
 		if(f.isDirectory())
@@ -283,7 +286,7 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 			
 		}
 
-		f = file_handle->openNextFile();
+		f = file_handle.openNextFile();
 	}
 
 	f.close();
@@ -307,14 +310,12 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 		case 0x11:
 			alive = true;	// Mark this Uxn instance as alive and having a vector
 			break;
+		case 0x16:	// Console - Stty
+			if(_console_stty) _console_stty(value); return;
         case 0x18:  // Console - Write
-            if(_console_write)
-                _console_write(value);
-			return;
+            if(_console_write) _console_write(value); return;
 		case 0x19:	// Console - Error
-			if(_console_error)
-				_console_error(value);
-			return;
+			if(_console_error) _console_error(value); return;
 		case 0xa9: if(_file_handle[0]) _file_handle[0].close(); break; // File A name (closes file handle A)
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
 		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
