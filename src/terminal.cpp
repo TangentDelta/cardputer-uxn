@@ -328,7 +328,7 @@ void Terminal::_escape_sequence_cwrite(const char c)
         case EscapeState::BRACKET:
         case EscapeState::PARAMS:
             // Is it a regular decimal digit or separator?
-            if((c >= '0') && (c <= '9') || (c == ';'))
+            if((c >= '0') && (c <= '9') || (c == ';') || (c == '?'))
             {
                 // Append it into the parameters string
                 if(_escape_params_index < (int)sizeof(_escape_params)-1)
@@ -350,9 +350,10 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
 {
     int command_args[4] = {0};  // Buffer for up to 4 numeric arguments
     uint8_t arg_count = 0;
+    bool is_private = params[0] == '?'; // Private mode flag
 
     // Parse the params string and populate the arguments for the command
-    const char *p = params;
+    const char *p = is_private ? params+1 : params; // Skip past the '?' char if private mode
     while((*p != '\0') && arg_count < 4)
     {
         command_args[arg_count++] = atoi(p);    // Try to read the decmial integer
@@ -361,37 +362,54 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
     }
 
     // Args are parsed, time to figure out what command to run
-    switch(c)
+
+    if(is_private)
     {
-        case 'H':   // Home/position cursor
-        case 'f':
-            _cursor_row = command_args[0];
-            _cursor_col = command_args[1];
-            break;
-        case 'A':   // Move cursor relative up
-            _cursor_row = max(0,(int)_cursor_row - command_args[0]);
-            break;
-        case 'B':   // Move cursor relative down
-            _cursor_row = min(ROWS-1,_cursor_row + command_args[0]);
-            break;
-        case 'C':   // Move cursor relative right
-            _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]);
-            break;
-        case 'D':   // Move cursor relative left
-            _cursor_col = max(0,(int)_cursor_col - command_args[0]);
-            break;
-        case 'J':   // Erase screen
-            // TODO: Handle the plethora of other erase modes. Probably need to roll it into the clear() method
-            clear();
-            break;
-        case 'K':   // Erase line
-            // TODO: Same deal as erase screen
-            break;
-        case 'n':
-            if(command_args[0] == 6)    // Cursor position request
-                _send_cursor_position_response();
-            break;
+        switch(c)
+        {
+            case 'h':   // DEC private modes
+                if(command_args[0] == 1049)
+                {
+                    // Do something here to handle switching to an alternate buffer
+                }
+                break;
+        }
     }
+    else
+    {
+        switch(c)
+        {
+            case 'H':   // Home/position cursor
+            case 'f':
+                _cursor_row = command_args[0];
+                _cursor_col = command_args[1];
+                break;
+            case 'A':   // Move cursor relative up
+                _cursor_row = max(0,(int)_cursor_row - command_args[0]);
+                break;
+            case 'B':   // Move cursor relative down
+                _cursor_row = min(ROWS-1,_cursor_row + command_args[0]);
+                break;
+            case 'C':   // Move cursor relative right
+                _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]);
+                break;
+            case 'D':   // Move cursor relative left
+                _cursor_col = max(0,(int)_cursor_col - command_args[0]);
+                break;
+            case 'J':   // Erase screen
+                // TODO: Handle the plethora of other erase modes. Probably need to roll it into the clear() method
+                clear();
+                break;
+            case 'K':   // Erase line
+                // TODO: Same deal as erase screen
+                break;
+            case 'n':
+                if(command_args[0] == 6)    // Cursor position request
+                    _send_cursor_position_response();
+                break;
+        }
+    }
+
 }
 
 void Terminal::_send_cursor_position_response()
