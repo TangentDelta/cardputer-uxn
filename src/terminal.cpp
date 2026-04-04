@@ -381,25 +381,20 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
         {
             case 'H':   // Home/position cursor
             case 'f':
-                _cursor_row = command_args[0];
-                _cursor_col = command_args[1];
+                _cursor_row = min(ROWS-1,command_args[0]);
+                _cursor_col = min(COLUMNS-1,command_args[1]);
                 break;
             case 'A':   // Move cursor relative up
-                _cursor_row = max(0,(int)_cursor_row - command_args[0]);
-                break;
+                _cursor_row = max(0,(int)_cursor_row - command_args[0]); break;
             case 'B':   // Move cursor relative down
-                _cursor_row = min(ROWS-1,_cursor_row + command_args[0]);
-                break;
+                _cursor_row = min(ROWS-1,_cursor_row + command_args[0]); break;
             case 'C':   // Move cursor relative right
-                _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]);
-                break;
+                _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]); break;
             case 'D':   // Move cursor relative left
-                _cursor_col = max(0,(int)_cursor_col - command_args[0]);
-                break;
+                _cursor_col = max(0,(int)_cursor_col - command_args[0]); break;
             case 'J':   // Erase screen
                 // TODO: Handle the plethora of other erase modes. Probably need to roll it into the clear() method
-                clear();
-                break;
+                clear(); break;
             case 'K':   // Erase line
                 // TODO: Same deal as erase screen
                 break;

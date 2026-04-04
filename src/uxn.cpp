@@ -125,6 +125,8 @@ void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
 {
     switch(port)
     {
+		case 0x16:	// Console - stty
+			_console_stty = port_callback; break;
         case 0x18:  // Console - Write
             _console_write = port_callback; break;
 		case 0x19:	// Console - error
@@ -250,7 +252,7 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	uint16_t bytes_written = 0;
 	char dir_entry_buffer[32];
 
-	File& file_handle = _file_handle[file_index];	// De-reference the file handle for this device so we can use it...
+	File& file_handle = _file_handle[file_index];
 
 	File f = file_handle.openNextFile();
 	while(f)
