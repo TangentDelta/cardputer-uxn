@@ -104,7 +104,7 @@ void terminal_cwrite(uint8_t value)
 // Sets the mode flags of the terminal based on the flag byte from Uxn
 void terminal_uxn_stty(uint8_t value)
 {
-    terminal.set_mode(TerminalFlag::FLAG_CANONICAL, (value && 0x40) == 0);
+    terminal.set_mode(TerminalFlag::FLAG_CANONICAL, (value & 0x40) == 0);
 }
 
 // Wires the Console I/O between Uxn instances
