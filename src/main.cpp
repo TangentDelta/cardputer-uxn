@@ -53,6 +53,10 @@ Uxn *load_rom(const char *rom_name)
     if(strlen(rom_name) > 15)
         return nullptr;
 
+    bool do_raw = rom_name[0] == '!';
+    if(do_raw)  // Skip past the '!' char
+        rom_name++;
+
     // Construct the path for the ROM file to look for
     char rom_path[20];
     snprintf(rom_path, 1+strlen(rom_name)+4+1, "%s.rom", rom_name);
@@ -92,6 +96,9 @@ Uxn *load_rom(const char *rom_name)
     // Give the new Uxn instance a reference to the SD card handler
     // This will eventually be a more general filesystem handler...
     u->sd_card_handler = sd_card_handler;
+
+    if(do_raw)
+        terminal.set_mode(TerminalFlag::FLAG_CANONICAL, false);
 
     return u;
 }
