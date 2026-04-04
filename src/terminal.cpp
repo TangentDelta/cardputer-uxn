@@ -138,7 +138,7 @@ void Terminal::cwrite(const char c)
             _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ';
             break;
         case '\033':    // Escape
-            _escape_state == EscapeState::ESCAPE;
+            _escape_state = EscapeState::ESCAPE;
             _escape_params_index = 0;
             break;
         default:
