@@ -87,7 +87,7 @@ void Terminal::cwrite(const char c)
 {
     // If we're reading in the characters for an escape sequence, don't do anything else
     // but handle processing the escape sequence
-    if(_escape_sequence)
+    if(_escape_state != EscapeState::NORMAL)
     {
         _escape_sequence_cwrite(c);
         return;
@@ -121,8 +121,8 @@ void Terminal::cwrite(const char c)
             _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ';
             break;
         case '\033':    // Escape
-            _escape_sequence = true;
-            _escape_buffer_index = 0;
+            _escape_state == EscapeState::ESCAPE;
+            _escape_params_index = 0;
             break;
         default:
             // Did a control character end up here?
@@ -172,7 +172,7 @@ void Terminal::set_mode(TerminalFlag flag, bool flag_state)
 {
     switch(flag)
     {
-        case(FLAG_CANONICAL): flag_canon = flag_state; break;
+        case(TerminalFlag::FLAG_CANONICAL): flag_canon = flag_state; break;
     }
 }
 
@@ -280,35 +280,95 @@ void Terminal::_handle_cursor()
 
 void Terminal::_escape_sequence_cwrite(const char c)
 {
-    if(_escape_buffer_index == 0)
+    switch(_escape_state)
     {
-        // Single-character escape codes, no need to buffer them
-        switch(c)
-        {
-            case '7':   // savecursor
-                _cursor_col_mem = _cursor_col;
-                _cursor_row_mem = _cursor_row;
-                _escape_sequence = false;
-                return;
-                break;
-            case '8':   // restorecursor
-                _cursor_row = _cursor_row_mem;
-                _cursor_col = _cursor_col_mem;
-                _escape_sequence = false;
-                return;
-                break;
-        }
+        case EscapeState::ESCAPE:
+            if(c == '[')    // It's bracket time
+                _escape_state = EscapeState::BRACKET;
+            else    // Unrecognized code, return to normal
+                _escape_state = EscapeState::NORMAL;
+            break;
+        case EscapeState::BRACKET:
+        case EscapeState::PARAMS:
+            // Is it a regular decimal digit or separator?
+            if((c >= '0') && (c <= '9') || (c == ';'))
+            {
+                // Append it into the parameters string
+                if(_escape_params_index < (int)sizeof(_escape_params)-1)
+                    _escape_params[_escape_params_index++] = c;
+                _escape_state = EscapeState::PARAMS;
+            }
+            else
+            {
+                // Not a digit or separator
+                _escape_params[_escape_params_index] = '\0';    // Null-terminate the parameters
+                _dispatch_escape_sequence(_escape_params, c);   // Perform the sequence's action
+                _escape_state = EscapeState::NORMAL;    // Return to normal mode
+            }
+            break;
+    }
+}
 
-        _escape_buffer[_escape_buffer_index++] = c;
-        return;
+void Terminal::_dispatch_escape_sequence(const char *params, char c)
+{
+    int command_args[4] = {0};  // Buffer for up to 4 numeric arguments
+    uint8_t arg_count = 0;
+
+    // Parse the params string and populate the arguments for the command
+    const char *p = params;
+    while((*p != '\0') && arg_count < 4)
+    {
+        command_args[arg_count++] = atoi(p);    // Try to read the decmial integer
+        while((*p != '\0') && (*p != ';')) p++;  // Skip over the digits we just read in  
+        if(*p == ';') p++;  // Skip the separator character
     }
 
-    if((_escape_buffer_index > 0) && (_escape_buffer[0] == '['))
+    // Args are parsed, time to figure out what command to run
+    switch(c)
     {
-        if(c)
-        switch(c)
-        {
-
-        }
+        case 'H':   // Home/position cursor
+        case 'f':
+            _cursor_row = command_args[0];
+            _cursor_col = command_args[1];
+            break;
+        case 'A':   // Move cursor relative up
+            _cursor_row = max(0,(int)_cursor_row - command_args[0]);
+            break;
+        case 'B':   // Move cursor relative down
+            _cursor_row = min(ROWS-1,_cursor_row + command_args[0]);
+            break;
+        case 'C':   // Move cursor relative right
+            _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]);
+            break;
+        case 'D':   // Move cursor relative left
+            _cursor_col = max(0,(int)_cursor_col - command_args[0]);
+            break;
+        case 'J':   // Erase screen
+            // TODO: Handle the plethora of other erase modes. Probably need to roll it into the clear() method
+            clear();
+            break;
+        case 'K':   // Erase line
+            // TODO: Same deal as erase screen
+            break;
+        case 'n':
+            if(command_args[0] == 6)    // Cursor position request
+                _send_cursor_position_response();
+            break;
     }
+}
+
+void Terminal::_send_cursor_position_response()
+{
+    if(!_on_keyboard)
+        return; // Why are we even here...
+
+    char buf[32];
+    char *p = buf;
+    
+    // ESC[#;#R
+    sprintf(buf, "\033[%d;%dR", _cursor_row, _cursor_col);
+
+    // Send it out the keyboard
+    while(*p != '\0')
+        _on_keyboard(*(p++));
 }

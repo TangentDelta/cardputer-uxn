@@ -21,9 +21,17 @@
 
 using OnKeyboardCallback = std::function<void(const uint8_t)>;
 
-enum TerminalFlag
+enum class TerminalFlag
 {
     FLAG_CANONICAL
+};
+
+enum class EscapeState
+{
+    NORMAL,
+    ESCAPE, // Escape character '\033' encountered
+    BRACKET,    // Escape '[' encountered 
+    PARAMS  // Accumulating parameters
 };
 
 class Terminal
@@ -64,13 +72,15 @@ protected:
     bool _dirty = false;    // Has the character buffer been modified since the last update?
 
     // Escape sequence handling
-    bool _escape_sequence = false;
-    char _escape_buffer_index = 0;
-    char _escape_buffer[8];
+    EscapeState _escape_state = EscapeState::NORMAL;
+    char _escape_params[32];
+    char _escape_params_index = 0;
 
     OnKeyboardCallback _on_keyboard = nullptr;
 
     void _render_terminal();
     void _handle_cursor();  // Handle newline wrapping and scrolling the character buffer
     void _escape_sequence_cwrite(const char c);
+    void _dispatch_escape_sequence(const char *params, char c);
+    void _send_cursor_position_response();
 };
