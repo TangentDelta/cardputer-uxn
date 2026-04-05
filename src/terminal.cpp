@@ -35,7 +35,12 @@ void Terminal::update()
 
                 // Process pressed special keys
                 if(status.del)
-                    c = (status.fn ? '\127' : '\b');    // Fn shifts between backsapce and delete
+                {
+                    if(status.fn)
+                        _kb_print("\033[3~");   // VT220 forward delete...
+                    else
+                        c = '\177';
+                }
                 if(status.enter)
                     c = '\n';
 
@@ -124,7 +129,7 @@ void Terminal::cwrite(const char c)
         case '\r':
             _cursor_col = 0;
             break;
-        case '\b':
+        case '\177':    // DEL
             if(_cursor_col > 0)
                 _cursor_col--;
             else
@@ -212,7 +217,7 @@ Private Methods
             _canon_buffer[_canon_index+1] = '\0';
             _canon_send();
             break;
-        case('\b'):
+        case('\177'):   // DEL
             if(_canon_index > 0)
                 _canon_index--;
             else
