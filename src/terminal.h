@@ -8,10 +8,10 @@
 // These should probably be compute automatically eventually
 #define SCREEN_DIMS_X 240
 #define SCREEN_DIMS_Y 135
-#define COLUMNS 30
-#define ROWS 16
 #define FONT_HEIGHT 8
 #define FONT_WIDTH 8
+#define COLUMNS (SCREEN_DIMS_X / FONT_WIDTH)
+#define ROWS (SCREEN_DIMS_Y / FONT_HEIGHT)
 #define CURSOR_BLINK_TIME 200
 #define KEYBOARD_UPDATE_INTERVAL 100
 
