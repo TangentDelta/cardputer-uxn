@@ -376,6 +376,7 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
                 if(command_args[0] == 1049)
                 {
                     // Do something here to handle switching to an alternate buffer
+                    clear();
                 }
                 break;
         }
@@ -386,8 +387,8 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
         {
             case 'H':   // Home/position cursor
             case 'f':
-                _cursor_row = min(ROWS-1,command_args[0]);
-                _cursor_col = min(COLUMNS-1,command_args[1]);
+                _cursor_row = max(0, min(ROWS-1, command_args[0]-1));
+                _cursor_col = max(0, min(COLUMNS-1, command_args[1]-1));
                 break;
             case 'A':   // Move cursor relative up
                 _cursor_row = max(0,(int)_cursor_row - command_args[0]); break;
@@ -402,6 +403,8 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
                 clear(); break;
             case 'K':   // Erase line
                 // TODO: Same deal as erase screen
+                break;
+            case 'm':   // Color/graphics mode
                 break;
             case 'n':
                 if(command_args[0] == 6)    // Cursor position request
@@ -420,7 +423,7 @@ void Terminal::_send_cursor_position_response()
     char buf[32];
     
     // ESC[#;#R
-    sprintf(buf, "\033[%d;%dR", _cursor_row, _cursor_col);
+    sprintf(buf, "\033[%d;%dR", _cursor_row+1, _cursor_col+1);
 
     // Send it out the keyboard
     _kb_print(buf);
