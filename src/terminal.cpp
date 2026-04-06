@@ -182,10 +182,19 @@ void Terminal::print(const char *s)
     
 }
 
-void Terminal::clear(const char c)
+void Terminal::clear(const char c, const uint8_t mode)
 {
     _dirty = true;
-    memset(_char_buffer, c, ROWS*COLUMNS);
+    switch(mode)
+    {
+        case(0): memset(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, (ROWS*COLUMNS)-(_cursor_col+(_cursor_row*COLUMNS))); break;  // Mode 0 - From cursor to end of screen
+        case(1): memset(_char_buffer, c, (_cursor_col+(_cursor_row*COLUMNS))); break; // Mode 1 - From cursor to beginning of screen
+        case(2): memset(_char_buffer, c, ROWS*COLUMNS); break;  // Mode 2 - Entire screen
+        case(4): memset(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, ROWS-_cursor_row); // Mode 4 - Cursor to end of line
+        case(5): memset(_char_buffer+(_cursor_row*COLUMNS), c, _cursor_col);    // Mode 5 - Start of line to cursor
+        case(6): memset(_char_buffer+(_cursor_row*COLUMNS), c, COLUMNS);    // Mode 6 - Entire row
+    }
+    
     // Should this reset the curosr position too?
 }
 
@@ -206,16 +215,67 @@ Private Methods
 // Called by the keyboard handler if a key is pressed and the canonical mode flag is set
  void Terminal::_canon_on_key(char c)
  {
-    // TODO: Handle arrow keys for line editing, recalling previous canon buffer
+    // Little state machine for handling arrow keys
+    if(_canon_escape_state != EscapeState::NORMAL)
+    {
+        switch(_canon_escape_state)
+        {
+            case EscapeState::ESCAPE:
+                if(c == '[')
+                    _canon_escape_state = EscapeState::BRACKET;
+                else    // Unrecognized code, return to normal
+                    _canon_escape_state = EscapeState::NORMAL;
+                break;
+            case EscapeState::BRACKET:
+                if(c == 'A')    // Up arrow
+                {
+                    // Backspace the entire input line to handle wrapping back up to the previous line gracefully
+                    for(int i=0; i < _canon_index; i++)
+                        cwrite('\177');
+
+                    char *p = _canon_buffer_prev;
+                    while(*p != '\0')
+                        cwrite(*(p++));
+
+                    _canon_index = strlen(_canon_buffer_prev);
+                    strcpy(_canon_buffer, _canon_buffer_prev);
+                }
+                else if(c == 'B')   // Down arrow
+                {
+                    // Backspace the entire input line to handle wrapping back up to the previous line gracefully
+                    for(int i=0; i < _canon_index; i++)
+                        cwrite('\177');
+                    _canon_index = 0;
+                }
+                // TODO: Handle left and right arrow keys
+
+                _canon_escape_state = EscapeState::NORMAL;
+                break;
+        }
+        return;
+    }
+
+    // Immediately start handling the escape sequence and return if this is an escape character
+    if(c == '\033')
+    {
+        _canon_escape_state = EscapeState::ESCAPE;
+        return;
+    }
+
+    // If it's not an escape character and we're not handling the escape sequence, carry on...
+
     cwrite(c);  // Echo the char back to the screen
 
-    // Newline, time to send the buffer out?
     switch(c)
     {
         case('\n'):
             _canon_buffer[_canon_index] = '\n';
             _canon_buffer[_canon_index+1] = '\0';
-            _canon_send();
+            // Copy the buffer so that it can be recalled by an up arrow
+            memcpy(_canon_buffer_prev, _canon_buffer, CANONICAL_BUFFER_SIZE);
+            _canon_buffer_prev[_canon_index] = '\0';    // We don't want the newline, so null-terminate it
+
+            _canon_send();  // Send the buffer to whatever is listening to the keyboard
             break;
         case('\177'):   // DEL
             if(_canon_index > 0)
@@ -374,11 +434,13 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
         {
             case 'h':   // DEC private modes
                 if(command_args[0] == 1049)
-                {
-                    // Do something here to handle switching to an alternate buffer
-                    clear();
-                }
+                    _save_terminal_state();
                 break;
+            case 'l':
+                if(command_args[0] == 1049)
+                    _restore_terminal_state();
+                break;
+            
         }
     }
     else
@@ -398,12 +460,8 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
                 _cursor_col = min(COLUMNS-1,_cursor_col + command_args[0]); break;
             case 'D':   // Move cursor relative left
                 _cursor_col = max(0,(int)_cursor_col - command_args[0]); break;
-            case 'J':   // Erase screen
-                // TODO: Handle the plethora of other erase modes. Probably need to roll it into the clear() method
-                clear(); break;
-            case 'K':   // Erase line
-                // TODO: Same deal as erase screen
-                break;
+            case 'J': clear(' ', command_args[0]); break; // Erase screen
+            case 'K': clear(' ', command_args[0]+4); break; // Erase line
             case 'm':   // Color/graphics mode
                 break;
             case 'n':
@@ -427,4 +485,35 @@ void Terminal::_send_cursor_position_response()
 
     // Send it out the keyboard
     _kb_print(buf);
+}
+
+void Terminal::_save_terminal_state()
+{
+    // Don't save the state if we're already in the alternate buffer
+    if(_prev_state)
+        return;
+
+    _prev_state = new TerminalState;
+    _prev_state->cursor_col = _cursor_col;
+    _prev_state->cursor_row = _cursor_row;
+    memcpy(_prev_state->char_buffer, _char_buffer, ROWS*COLUMNS);
+
+    _cursor_row = 0;
+    _cursor_col = 0;
+    clear();
+    _dirty = true;
+}
+
+void Terminal::_restore_terminal_state()
+{
+    if(!_prev_state)
+        return;
+
+    _cursor_col = _prev_state->cursor_col;
+    _cursor_row = _prev_state->cursor_row;
+    memcpy(_char_buffer, _prev_state->char_buffer, ROWS*COLUMNS);
+    _dirty = true;
+
+    free(_prev_state);
+    _prev_state = nullptr;
 }

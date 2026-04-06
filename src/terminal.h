@@ -2,7 +2,7 @@
 
 #include <M5Cardputer.h>
 
-#define CANONICAL_BUFFER_SIZE 256
+#define CANONICAL_BUFFER_SIZE 128
 
 // These are based on the chosen font size and the screen size...
 // These should probably be compute automatically eventually
@@ -34,6 +34,13 @@ enum class EscapeState
     PARAMS  // Accumulating parameters
 };
 
+struct TerminalState
+{
+    uint8_t cursor_row = 0;
+    uint8_t cursor_col = 0;
+    char char_buffer[COLUMNS * ROWS];
+};
+
 class Terminal
 {
 public:
@@ -41,7 +48,7 @@ public:
     void update();
     void cwrite(const char c);
     void print(const char *s);
-    void clear(const char c = ' ');
+    void clear(const char c = ' ', const uint8_t mode = 2);
     void set_mode(TerminalFlag flag, bool flag_state);
 
     bool flag_canon = false;
@@ -63,6 +70,8 @@ protected:
     // The canonical mode buffer. It receives characters from the keyboard and immediately echos them.
     // The top bytes is reserved for a null terminator, and the top-1 byte is reserved for a newline character.
     char _canon_buffer[CANONICAL_BUFFER_SIZE+1];
+    char _canon_buffer_prev[CANONICAL_BUFFER_SIZE+1];
+    EscapeState _canon_escape_state = EscapeState::NORMAL;
     uint16_t _canon_index = 0;
     void _canon_on_key(char c);
     void _canon_send();
@@ -76,6 +85,9 @@ protected:
     char _escape_params[32];
     char _escape_params_index = 0;
 
+    // Alternate buffer
+    struct TerminalState *_prev_state;
+
     OnKeyboardCallback _on_keyboard = nullptr;
 
     void _render_terminal();
@@ -84,4 +96,6 @@ protected:
     void _escape_sequence_cwrite(const char c);
     void _dispatch_escape_sequence(const char *params, char c);
     void _send_cursor_position_response();
+    void _save_terminal_state();
+    void _restore_terminal_state();
 };
