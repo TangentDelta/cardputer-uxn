@@ -30,6 +30,82 @@ bool SDCardHandler::exists(const char *path)
     return b;
 }
 
+bool SDCardHandler::is_dir(const char *path)
+{
+    if(!exists(path))
+        return false;
+
+    File f = open(path, "r");
+    bool b = f.isDirectory();
+    f.close();
+
+    return b;
+}
+
+bool SDCardHandler::change_dir(const char *path)
+{
+    // Is this new path a valid directory?
+    if(!is_dir(path))
+        return false;
+
+    // Absolute path?
+    if(path[0] == '/')
+    {
+        // Just copy the new path over
+        strcpy(working_dir, path);
+        return true;
+    }
+
+    // Relative path needs to be appended onto the current working directory
+    strcat(working_dir, path);
+    return true;
+}
+
+bool SDCardHandler::mkdir(const char *path)
+{
+    bool success = SD.mkdir(_build_path(path));
+    
+    if(_path_separator != 0)
+    {
+        working_dir[_path_separator] = '\0';
+        _path_separator = 0;
+    }
+
+    return success;
+}
+
+bool SDCardHandler::create_dirs(const char *path)
+{
+    char path_buf[128] = {0};   // A place to hold the path as we build it directory-by-directory
+    char *p = path_buf;
+
+    // Is the path relative?
+    if(path[0] != '/')
+    {
+        // If so, we need to copy the working directory into the path buffer
+        strcpy(path_buf, working_dir);
+        // and move the path buffer pointer up
+        p+=(strlen(working_dir));
+    }
+    
+    // Create the directories along the path
+    while(*path != '\0')
+    {
+        *(p++) = *path; // Copy the next char into the buffer
+        if(*(path++)=='/')
+        {
+            // Next directory. Check if it exists and create it if it does not
+            if(!exists(path_buf))
+            {
+                if(!mkdir(path_buf))
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 const char* SDCardHandler::_build_path(const char* path)
 {
     if(path[0] == '/')  // Absolute path?

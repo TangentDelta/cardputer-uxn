@@ -14,6 +14,10 @@ public:
     void begin();
     File open(const char *path, const char *mode);
     bool exists(const char *path);
+    bool is_dir(const char *path);
+    bool change_dir(const char *path);
+    bool mkdir(const char *path);
+    bool create_dirs(const char *path);
     char working_dir[128] = "/";
 protected:
     uint8_t _path_separator = 0;
