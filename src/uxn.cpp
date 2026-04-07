@@ -298,6 +298,11 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 
 uint8_t Uxn::_dei(const uint8_t port)
 {
+	switch(port)
+	{
+		case 0x04:	return _ptr[0]; // System - wst
+		case 0x05:	return _ptr[1]; // System - rst
+	}
 	return _devices[port];
 }
 
@@ -306,6 +311,8 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 	_devices[port] = value;
     switch(port)
     {
+		case 0x04:	_ptr[0] = value; break; // System - wst
+		case 0x05:	_ptr[1] = value; break; // System - rst
 		case 0x0f:	// System - State
 			alive = (value == 0); break;
 		case 0x10:	// Console - Vector
