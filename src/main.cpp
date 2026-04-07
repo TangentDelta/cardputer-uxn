@@ -36,6 +36,9 @@ void print_heap_free()
     terminal.cwrite('\n');
 }
 
+// Method pre-defs
+void shell_print_prompt();
+
 /*
 Quick and dirty Uxn ROM loader
 Looks for a ROM with the provided name on the SD card
@@ -154,6 +157,20 @@ void release_uxn_instances()
     terminal.set_mode(TerminalFlag::FLAG_CANONICAL, true);
 
     uxn_instance_index = 0;
+}
+
+// Check all of the Uxn instances to make sure they're all alive
+void check_uxn_instances()
+{
+    for(int i=0; i < uxn_instance_index; i++)
+    {
+        if(!uxn_instances[i]->alive)
+        {
+            release_uxn_instances();
+            terminal.cwrite('\n');
+            shell_print_prompt();
+        }
+    }
 }
 
 // Prints the prompt for the shell
@@ -440,6 +457,7 @@ void setup()
 
 void loop()
 {
+    check_uxn_instances();
     M5Cardputer.update();
     terminal.update();
 }
