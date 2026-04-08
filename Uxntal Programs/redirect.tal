@@ -1,0 +1,43 @@
+|00 @System/vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+|a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+
+|0000
+@buffer $1
+
+|100
+@on-reset ( -> )
+    .Console/type DEI ?{ BRK }  ( No args? Immedaitely quit )
+    ;on-console-args .Console/vector DEO2
+    #0001 .File1/length DEO2 ( Only move 1 byte at a time )
+    BRK
+
+( Capture the arguments from the shell )
+@on-console-args ( -> )
+	.Console/type DEI #02 EQU ?on-arg
+	.Console/type DEI #04 EQU ?on-end
+	BRK
+
+( Capture the characters from the console )
+@on-console-input ( -> )
+    .Console/read DEI .buffer STZ ( Buffer the byte into RAM )
+    ;buffer .File1/write DEO2 ( Write it to the file handle )
+    .File1/success DEI2 ORA ?abort ( If nothing was written, abort )
+    BRK
+
+@on-arg
+	.Console/read DEI ( Grab the next argument character )
+	[ LIT2 &ptr =path ] INC2k ,&ptr STR2 ( Increment the pointer into the path buffer )
+	STA BRK	( Store the character and stop executing )
+
+@on-end
+    ;on-console-input .Console/vector DEO2  ( Redirect the console vector to the file writer )
+    ;path .File1/name DEO2 ( Set the filename to the path buffer )
+    BRK
+
+( Immedaitely abort the program with an error )
+@abort
+    #01 .System/state DEO
+    BRK
+
+@path $100
