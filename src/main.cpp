@@ -233,6 +233,7 @@ void shell_process_buffer()
                     case '>':
                     case ' ':
                         break;
+                    case '\n':
                     case '\0':
                         lexing = false;
                         break;
@@ -250,6 +251,7 @@ void shell_process_buffer()
                 {
                     // Immediately hitting these chars causes the same initial effect
                     case '>':
+                    case '\n':
                     case '\0':
                     case '|':
                         shell_word[shell_word_index] = '\0';    // Null-terminate the word
@@ -273,6 +275,7 @@ void shell_process_buffer()
                 // Now handle the special character behaviors
                 switch(c)
                 {
+                    case '\n':
                     case '\0':
                         lexing = false; // Stop the lexer
                         break;
@@ -291,6 +294,7 @@ void shell_process_buffer()
             case IN_ARGS:
                 switch(c)
                 {
+                    case '\n':
                     case '\0':
                         lexing = false; // Stop the lexer
                         break;
@@ -334,6 +338,7 @@ void shell_process_buffer()
             // TODO: This should get made into a lexer
             bool space_skip = true;    // Flag to skip redundant spaces
             bool first_printable = false;
+            uint8_t arg_count = 0;
             for(int i = 0; i < 32; i++)
             {
                 char c = instance_args[i];
@@ -346,9 +351,11 @@ void shell_process_buffer()
                     continue;
 
                 // Stop processing args if we hit a pipe, redirect, or the end of the buffer
-                if((c == '|') || (c == '>') || (c == '\0'))
+                if((c == '|') || (c == '>') || (c == '\0') || (c == '\n'))
                 {
-                    u->console_vector(0xa, ConsoleType::type_argument_end);
+                    // Only terminate the arguments if there are actually arguments!
+                    if(arg_count > 0)
+                        u->console_vector(0xa, ConsoleType::type_argument_end);
                     break;
                 }
 
@@ -362,6 +369,7 @@ void shell_process_buffer()
                 // If we were skipping spaces and now are not, send a spacer before sending the argument character
                 if(space_skip)
                 {
+                    arg_count++;
                     if(first_printable)
                         u->console_vector(0xa, ConsoleType::type_argument_spacer);
                     else
