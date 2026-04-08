@@ -6,17 +6,20 @@
 
 |100
 @on-reset ( -> )
-	;cat/on-console .Console/vector DEO2
+	;cat/on-console-args .Console/vector DEO2
 	#0100 .File1/length DEO2
 	;cat/path .File1/name DEO2
 	BRK
 
-@cat/on-console ( -> )
+@cat/on-console-args ( -> )
 	( Is there a better way to do a switch statement in Uxntal? )
 	.Console/type DEI
 	#02 EQUk ?/on-arg POP
 	#03 EQUk ?/on-spacer POP
 	#04 EQUk ?/on-end POP
+	BRK
+
+@cat/on-console
 	BRK
 
 @cat/on-arg ( type -> )
@@ -26,6 +29,7 @@
 	STA BRK	( Store the character and stop executing )
 
 @cat/on-end ( type -> )
+	;cat/on-console .Console/vector DEO2	( We're done with the console but still need to catch stdin and the terminator )
 	#01 .&do-terminate STZ	( Set flag for termination when we're done )
 	( Fall through to on-spacer )
 

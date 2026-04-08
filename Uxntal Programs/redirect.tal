@@ -20,6 +20,7 @@
 
 ( Capture the characters from the console )
 @on-console-input ( -> )
+    .Console/type DEI #04 EQU ?on-terminate
     .Console/read DEI .buffer STZ ( Buffer the byte into RAM )
     ;buffer .File1/write DEO2 ( Write it to the file handle )
     .File1/success DEI2 ORA ?{ !abort } ( If nothing was written, abort )
@@ -33,6 +34,10 @@
 @on-end
     ;on-console-input .Console/vector DEO2  ( Redirect the console vector to the file writer )
     ;path .File1/name DEO2 ( Set the filename to the path buffer )
+    BRK
+
+@on-terminate
+    ( TODO: Write out the buffer to the open file and close the file )
     BRK
 
 ( Immedaitely abort the program with an error )
