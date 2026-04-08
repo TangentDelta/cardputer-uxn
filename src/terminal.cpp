@@ -42,7 +42,7 @@ void Terminal::update()
                         c = '\177';
                 }
                 if(status.enter)
-                    c = '\n';
+                    c = '\r';
 
                 // Send the special character if one of the special keys was pressed
                 if(c != '\0')
@@ -264,12 +264,15 @@ Private Methods
 
     // If it's not an escape character and we're not handling the escape sequence, carry on...
 
+    // TODO: Make this controllable with a flag
+    if(c == '\r') c = '\n'; // Translate the carriage return to a newline
+
     cwrite(c);  // Echo the char back to the screen
 
     switch(c)
     {
-        case('\n'):
-            _canon_buffer[_canon_index] = '\n';
+        case('\n'): // Newline (carriage return)
+            _canon_buffer[_canon_index] = '\n'; // Translate it to a newline character
             _canon_buffer[_canon_index+1] = '\0';
             // Copy the buffer so that it can be recalled by an up arrow
             memcpy(_canon_buffer_prev, _canon_buffer, CANONICAL_BUFFER_SIZE);
