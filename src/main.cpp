@@ -84,6 +84,14 @@ Uxn *load_rom(const char *rom_name)
     // Add a new Uxn instance
     // TODO: Automatically size this instance based on the size of the ROM? ROM metadata?
     Uxn *u = new Uxn();
+    // Initialize the instance
+    if(!u->begin())
+    {
+        // If there's not enough memory, immedaitely delete the new instance and return a nullptr
+        f.close();
+        delete u;
+        return nullptr;
+    }
     uxn_instances[uxn_instance_index++] = u;
 
     // Load the contents of the ROM into the instance's RAM
@@ -292,6 +300,7 @@ void shell_process_buffer()
                         shell_lexer_state = IN_ARGS;    // Grab the arguments for the redirect
                         break;
                 }
+                break;
             // In argument state
             // Just blindly moves ahead while checking for the start of a new word
             case IN_ARGS:

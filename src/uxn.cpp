@@ -6,13 +6,6 @@ Uxn::Uxn(const int ram_size, const int stack_size)
 	_stack_size = stack_size;
 	_ram_mask = ram_size-1;
 	_stack_mask = stack_size-1;
-
-	// Allocate heap memory for the VM
-	_ram = (uint8_t*)malloc(ram_size * sizeof(uint8_t));
-	_stk[0] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
-	_stk[1] = (uint8_t*)malloc(stack_size * sizeof(uint8_t));
-
-	memset(_ram, 0, ram_size);
 }
 
 Uxn::~Uxn()
@@ -27,6 +20,23 @@ Uxn::~Uxn()
 	free(_ram);
 	free(_stk[0]);
 	free(_stk[1]);
+}
+
+bool Uxn::begin()
+{
+	int free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+
+	if(free < (_ram_size + (_stack_size*2)))
+		return false;
+	
+	// Allocate heap memory for the VM
+	_ram = (uint8_t*)malloc(_ram_size * sizeof(uint8_t));
+	_stk[0] = (uint8_t*)malloc(_stack_size * sizeof(uint8_t));
+	_stk[1] = (uint8_t*)malloc(_stack_size * sizeof(uint8_t));
+
+	memset(_ram, 0, _ram_size);
+
+	return true;
 }
 
 /*

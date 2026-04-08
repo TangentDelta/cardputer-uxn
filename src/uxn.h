@@ -26,6 +26,7 @@ class Uxn
 public:
     Uxn(const int ram_size=0x10000, const int stack_size=0x100);
     ~Uxn();
+    bool begin();
     unsigned int eval(uint16_t pc);
     void load(const uint8_t *rom, int count);
     void set_deo_callback(uint8_t port, UxnDeviceCallback port_callback);
