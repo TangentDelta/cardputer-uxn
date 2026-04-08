@@ -35,6 +35,7 @@ bool Uxn::begin()
 	_stk[1] = (uint8_t*)malloc(_stack_size * sizeof(uint8_t));
 
 	memset(_ram, 0, _ram_size);
+	memset(_devices, 0, 256);
 
 	return true;
 }
@@ -279,13 +280,11 @@ void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 
 	uint16_t buffer_length = device[0xa] << 8;
 	buffer_length |= device[0xb];
-	uint16_t source_addr = device[0xc] << 8;
-	source_addr |= device[0xd];
+	uint16_t source_addr = device[0xe] << 8;
+	source_addr |= device[0xf];
 	uint16_t bytes_written = 0;
 	for(int i = 0; i < buffer_length; i++)
-	{
 		bytes_written+=file_handle.write(_ram[(source_addr+i)&_ram_mask]);
-	}
 
 	// Report how many bytes we were able to write
 	device[2] = bytes_written>>8;
