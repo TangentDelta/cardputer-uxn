@@ -22,7 +22,7 @@
 @on-console-input ( -> )
     .Console/read DEI .buffer STZ ( Buffer the byte into RAM )
     ;buffer .File1/write DEO2 ( Write it to the file handle )
-    .File1/success DEI2 ORA ?abort ( If nothing was written, abort )
+    .File1/success DEI2 ORA ?{ !abort } ( If nothing was written, abort )
     BRK
 
 @on-arg
