@@ -11,6 +11,13 @@ enum ConsoleType
     type_argument_end
 };
 
+enum class FileHandleState
+{
+    closed,
+    open_read,
+    open_write
+};
+
 // Callback
 using UxnDeviceCallback = std::function<void(uint8_t)>;
 
@@ -64,8 +71,11 @@ protected:
     /* File Device */
     uint16_t _file_ptr;
     File _file_handle[2];
+    FileHandleState _file_handle_state[2] = {FileHandleState::closed};
     const char *_get_filename(uint8_t *device);    // Get the filename from File/name*
+    void _file_close(uint8_t file_index);
     void _file_read(uint8_t *device, uint8_t file_index);
     void _file_write(uint8_t *device, uint8_t file_index);
+    void _file_stat(uint8_t *device, uint8_t file_index);
     void _file_dir_content(uint8_t *device, uint8_t file_index);
 };

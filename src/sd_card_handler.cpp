@@ -8,7 +8,7 @@ void SDCardHandler::begin()
 
 File SDCardHandler::open(const char *path, const char *mode)
 {
-    File f = SD.open(_build_path(path), mode, mode[0] == 'w');
+    File f = SD.open(_build_path(path), mode, (mode[0] == 'w') || (mode[0] == 'a'));
     // Restore the working dir if it was modified
     if(_path_separator != 0)
     {

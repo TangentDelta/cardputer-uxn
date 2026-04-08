@@ -166,10 +166,17 @@ const char *Uxn::_get_filename(uint8_t *device)
 	const char* file_name = (char*)_ram+addr;
 
 	// If the file name pointed at isn't null-terminated, make sure we clamp the size and return an empty file name
-	if(strlen(file_name) > 64)
+	if(strlen(file_name) > 128)
 		return "";
 
 	return file_name;
+}
+
+// Close the file handle given the index
+void Uxn::_file_close(uint8_t file_index)
+{
+	_file_handle[file_index].close();
+	_file_handle_state[file_index] = FileHandleState::closed;
 }
 
 // Attempt to read a file from the filesystem
@@ -189,6 +196,8 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 		device[3] = 0;
 		return;
 	}
+
+	_file_handle_state[file_index] = FileHandleState::open_read;
 
 	// Is this actually a directory?
 	if(file_handle.isDirectory())
@@ -234,8 +243,48 @@ void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 {
 	File& file_handle = _file_handle[file_index];
 
+	// If the file handle was previously open for reading, close it
+	if(_file_handle_state[file_index] == FileHandleState::open_read)
+		file_handle.close();
+
+	// Initialize bytes written at 0
+	device[2] = 0;
+	device[3] = 0;
+
 	if(!file_handle)
-		file_handle = sd_card_handler.open(_get_filename(device), "r");
+	{
+		const char *file_name = _get_filename(device);
+		const char *end = file_name;	// A pointer to the null terminator in the filename
+		while(*(end++) != '\0');	// Compute the offset to the null terminator in the filename
+
+		// If the filename is invalid, immediately return
+		if((end-file_name) == 0) return;
+		// Create all of the directories needed to open this file
+		sd_card_handler.create_dirs(file_name);
+		// If the filename was a directory, our job here is done and we can return with 0 bytes written
+		if(end[-1] == '/') return;
+
+		file_handle = sd_card_handler.open(file_name, device[7] != 0 ? "a" : "w");
+	}
+
+	uint16_t buffer_length = device[0xa] << 8;
+	buffer_length |= device[0xb];
+	uint16_t source_addr = device[0xc] << 8;
+	source_addr |= device[0xd];
+	uint16_t bytes_written = 0;
+	for(int i = 0; i < buffer_length; i++)
+	{
+		bytes_written+=file_handle.write(_ram[(source_addr+i)&_ram_mask]);
+	}
+
+	// Report how many bytes we were able to write
+	device[2] = bytes_written>>8;
+	device[3] = bytes_written&0xff;
+}
+
+void Uxn::_file_stat(uint8_t *device, uint8_t file_index)
+{
+
 }
 
 void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
@@ -325,10 +374,14 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
             if(_console_write) _console_write(value); return;
 		case 0x19:	// Console - Error
 			if(_console_error) _console_error(value); return;
-		case 0xa9: if(_file_handle[0]) _file_handle[0].close(); break; // File A name (closes file handle A)
+		case 0xa5:	_file_stat(_devices+0xa0, 0); break;	// File A stat
+		case 0xa7:	// File A append (closes file handle A if open)
+		case 0xa9: if(_file_handle[0]) _file_close(0); break; // File A name (closes file handle A if open)
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
 		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
-		case 0xb9: if(_file_handle[1]) _file_handle[1].close(); break; // File B name (closes file handle B)
+		case 0xb5:	_file_stat(_devices+0xb0, 0); break;	// File B stat
+		case 0xb7:	// File B append (closes file handle B if open)
+		case 0xb9: if(_file_handle[1]) _file_close(1); break; // File B name (closes file handle B if open)
 		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File A read
 		case 0xbf: _file_write(_devices+0xb0, 1); break;	// File B write
         default:
