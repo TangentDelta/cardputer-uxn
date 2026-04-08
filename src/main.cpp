@@ -78,7 +78,7 @@ Uxn *load_rom(const char *rom_name)
         return nullptr;
 
     // File is larger than Uxn RAM
-    if(f.size() > 0xF000)
+    if(f.size() > 0xFF00)
         return nullptr;
 
     // Add a new Uxn instance
