@@ -75,6 +75,15 @@ void Terminal::update()
                         if(status.ctrl)
                             c &= 0x1f;
 
+                        // The alt key prepends an escape to the character
+                        if(status.alt)
+                        {
+                            if(flag_canon)
+                                _canon_on_key('\033');
+                            else
+                                _on_keyboard('\033');
+                        }
+
                         // Send the character
                         if(flag_canon)
                             _canon_on_key(c);
