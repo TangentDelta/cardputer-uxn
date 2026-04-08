@@ -39,6 +39,7 @@ public:
     uint8_t dev_peek(uint8_t port) { return _dei(port); };
 
     /* Console Device */
+    bool console_vector_set = false;
     void console_vector(uint8_t value, ConsoleType value_type = ConsoleType::type_stdin);
     void console_stdin(uint8_t value){ console_vector(value); };
 

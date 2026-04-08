@@ -366,6 +366,7 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 			alive = (value == 0); break;
 		case 0x10:	// Console - Vector
 		case 0x11:
+			console_vector_set = true;
 			alive = true;	// Mark this Uxn instance as alive and having a vector
 			break;
 		case 0x16:	// Console - Stty

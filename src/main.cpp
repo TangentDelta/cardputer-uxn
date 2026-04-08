@@ -146,10 +146,13 @@ void wire_uxn_instances()
 // Relases all of the uxn instances
 void release_uxn_instances()
 {
-    // TODO: When I eventually add the file device, this needs to clean up floating file handles too
-    // Done! The Uxn instance destructor does this now
+
     for(int i = 0; i < uxn_instance_index; i++)
     {
+        // Tell the instance that it is being shut down
+        if(uxn_instances[i]->console_vector_set)
+            uxn_instances[i]->console_vector(0x0a, ConsoleType::type_argument_end);
+
         delete uxn_instances[i];
     }
 
