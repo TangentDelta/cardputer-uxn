@@ -172,8 +172,8 @@ void Uxn::console_vector(uint8_t value, ConsoleType value_type)
 // Get the null-terminated string pointed at by File/name*
 const char *Uxn::_get_filename(uint8_t *device)
 {
-	uint16_t addr = device[0x8] << 8;
-	addr |= device[0x9];
+	uint16_t addr = device[FileDevicePorts::NAME_HI] << 8;
+	addr |= device[FileDevicePorts::NAME_LO];
 	const char* file_name = (char*)_ram+addr;
 
 	// If the file name pointed at isn't null-terminated, make sure we clamp the size and return an empty file name
@@ -203,8 +203,8 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 	if(!file_handle)
 	{
 		// No, set the number of read bytes to 0 and return
-		device[2] = 0;
-		device[3] = 0;
+		device[FileDevicePorts::SUCCESS_HI] = 0;
+		device[FileDevicePorts::SUCCESS_LO] = 0;
 		return;
 	}
 
@@ -220,10 +220,10 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 
 	// This code feels redundant with _file_dir_content...
 	// TODO: Can this code be consolidated?
-	uint16_t buffer_length = device[0xa] << 8;
-	buffer_length |= device[0xb];
-	uint16_t dest_addr = device[0xc] << 8;
-	dest_addr |= device[0xd];
+	uint16_t buffer_length = device[FileDevicePorts::LENGTH_HI] << 8;
+	buffer_length |= device[FileDevicePorts::LENGTH_LO];
+	uint16_t dest_addr = device[FileDevicePorts::READ_HI] << 8;
+	dest_addr |= device[FileDevicePorts::READ_LO];
 	uint16_t bytes_written = 0;
 
 	while(file_handle.available())
@@ -238,16 +238,16 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 		{
 			// Ran out of buffer. Report how many bytes we wrote and return
 			// This will keep the file_handle open for future reading
-			device[2] = bytes_written>>8;
-			device[3] = bytes_written&0xff;
+			device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+			device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 			return;
 		}
 	}
 	// If we're here, the file ran out of bytes for us
 
 	// Report how many bytes we were able to read
-	device[2] = bytes_written>>8;
-	device[3] = bytes_written&0xff;
+	device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+	device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 }
 
 void Uxn::_file_write(uint8_t *device, uint8_t file_index)
@@ -259,8 +259,8 @@ void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 		file_handle.close();
 
 	// Initialize bytes written at 0
-	device[2] = 0;
-	device[3] = 0;
+	device[FileDevicePorts::SUCCESS_HI] = 0;
+	device[FileDevicePorts::SUCCESS_LO] = 0;
 
 	if(!file_handle)
 	{
@@ -275,20 +275,20 @@ void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 		// If the filename was a directory, our job here is done and we can return with 0 bytes written
 		if(end[-1] == '/') return;
 
-		file_handle = sd_card_handler.open(file_name, device[7] != 0 ? "a" : "w");
+		file_handle = sd_card_handler.open(file_name, device[FileDevicePorts::APPEND] != 0 ? "a" : "w");
 	}
 
-	uint16_t buffer_length = device[0xa] << 8;
-	buffer_length |= device[0xb];
-	uint16_t source_addr = device[0xe] << 8;
-	source_addr |= device[0xf];
+	uint16_t buffer_length = device[FileDevicePorts::LENGTH_HI] << 8;
+	buffer_length |= device[FileDevicePorts::LENGTH_LO];
+	uint16_t source_addr = device[FileDevicePorts::WRITE_HI] << 8;
+	source_addr |= device[FileDevicePorts::WRITE_LO];
 	uint16_t bytes_written = 0;
 	for(int i = 0; i < buffer_length; i++)
 		bytes_written+=file_handle.write(_ram[(source_addr+i)&_ram_mask]);
 
 	// Report how many bytes we were able to write
-	device[2] = bytes_written>>8;
-	device[3] = bytes_written&0xff;
+	device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+	device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 }
 
 void Uxn::_file_stat(uint8_t *device, uint8_t file_index)
@@ -301,10 +301,10 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	// This assumes that _file_handle[file_index] is not null, and points at a directory!
 
 	// Set some variables with data from the device
-	uint16_t buffer_length = device[0xa] << 8;
-	buffer_length |= device[0xb];
-	uint16_t dest_addr = device[0xc] << 8;
-	dest_addr |= device[0xd];
+	uint16_t buffer_length = device[FileDevicePorts::LENGTH_HI] << 8;
+	buffer_length |= device[FileDevicePorts::LENGTH_LO];
+	uint16_t dest_addr = device[FileDevicePorts::READ_HI] << 8;
+	dest_addr |= device[FileDevicePorts::READ_LO];
 
 	// Directory listing variables
 	uint16_t bytes_written = 0;
@@ -338,8 +338,8 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 			}
 			else
 			{
-				device[2] = bytes_written>>8;
-				device[3] = bytes_written&0xff;
+				device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+				device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 				f.close();
 				return;
 			}
@@ -350,8 +350,8 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	}
 
 	f.close();
-	device[2] = bytes_written>>8;
-	device[3] = bytes_written&0xff;
+	device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+	device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 }
 
 uint8_t Uxn::_dei(const uint8_t port)

@@ -18,6 +18,26 @@ enum class FileHandleState
     open_write
 };
 
+enum FileDevicePorts
+{
+    VECTOR_HI,
+    VECTOR_LO,
+    SUCCESS_HI,
+    SUCCESS_LO,
+    STAT_HI,
+    STAT_LO,
+    DELETE,
+    APPEND,
+    NAME_HI,
+    NAME_LO,
+    LENGTH_HI,
+    LENGTH_LO,
+    READ_HI,
+    READ_LO,
+    WRITE_HI,
+    WRITE_LO
+};
+
 // Callback
 using UxnDeviceCallback = std::function<void(uint8_t)>;
 
