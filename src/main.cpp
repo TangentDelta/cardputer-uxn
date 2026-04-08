@@ -48,8 +48,7 @@ Uxn *load_rom(const char *rom_name)
 {
 
     // Check if there are Uxn instance slots free
-    // TODO: Also check to make sure there is enough heap to allocate to a new Uxn instance
-    if(uxn_instance_index == 7)
+    if(uxn_instance_index == 3)
         return nullptr;
 
     // Check if ROM name is too long
