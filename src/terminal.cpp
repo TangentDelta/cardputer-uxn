@@ -143,7 +143,7 @@ void Terminal::cwrite(const char c)
                 _cursor_col--;
             else
             {
-                if(_cursor_row > 0)
+                if(flag_canon & (_cursor_row > 0))
                 {
                     _cursor_col = COLUMNS-1;
                     _cursor_row--;
@@ -162,6 +162,7 @@ void Terminal::cwrite(const char c)
                 // Print it out in a nice fancy way
                 cwrite('^');
                 cwrite(c|0x40);
+                return; // Return here since the previous two cwrites handled everything
             }
             else
             {
@@ -363,12 +364,26 @@ void Terminal::_handle_cursor()
 {
     if(_cursor_col >= COLUMNS)
     {
+        // Raw mode doesn't wrap to the next line
+        if(!flag_canon)
+        {
+            // So just back and return
+            _cursor_col = COLUMNS-1;
+            return;
+        }
         _cursor_col = 0;
         _cursor_row++;
     }
 
     if(_cursor_row >= ROWS)
     {
+        // Raw mode doesn't scroll either
+        if(!flag_canon)
+        {
+            // So just back the cursor back and return
+            _cursor_row = ROWS-1;
+            return;
+        }
         memcpy(_char_buffer, _char_buffer+COLUMNS, (COLUMNS*ROWS)-COLUMNS);
         _cursor_row = ROWS-1;
         memset(_char_buffer+((COLUMNS*ROWS)-COLUMNS), ' ', COLUMNS);
