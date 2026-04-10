@@ -1,0 +1,78 @@
+|00 @System/vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+|a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+
+|0000
+@do-terminate $1
+@ptr $2
+
+|100
+@on-reset
+    .Console/type DEI ?{ ;msg-usage string-print !terminate-error }
+	;on-console-args .Console/vector DEO2
+	;path .File1/name DEO2
+    ;path .ptr STZ2
+	BRK
+
+@on-console-args
+    .do-terminate LDZ #00 EQU ?{ BRK }
+	.Console/type DEI #02 EQU ?on-arg
+    .Console/type DEI #03 EQU ?on-spacer
+    .Console/type DEI #04 EQU ?on-end
+	BRK
+
+@on-arg
+    .Console/read DEI
+    .ptr LDZ2 INC2k .ptr STZ2
+    STA BRK
+
+@on-end
+    #01 .do-terminate STZ
+    ( Falls through to on-spacer )
+
+@on-spacer
+    #00 .ptr LDZ2 STA 
+    ;path .ptr STZ2
+    #01 .File1/delete DEO
+    ( Check if the file was deleted )
+    .File1/success DEI2 ORA ?{
+        ( If it wasn't, display an error )
+        ;msg-error string-print
+        ;path string-print
+        ;msg-newline string-print
+        !terminate-error
+    }
+    .do-terminate LDZ ?terminate-okay
+    BRK
+
+@string-print ( string-ptr -- )
+    LDAk DUP ?{ POP POP2 JMP2r }
+    #18 DEO
+    INC2 !string-print
+
+@terminate-error
+    #01 .do-terminate STZ
+    #01 .System/state DEO
+    BRK
+
+@terminate-okay
+    #80 .System/state DEO
+    BRK
+
+( Print the value n to the console as two ASCII digits )
+@write-hex-byte ( n -- )
+	DUP #04 SFT write-hex-nybble
+	( Fall through into writing the low nybble )
+
+( Print the value n to the console as a single ASCII digit )
+@write-hex-nybble ( n -- )
+	#0f AND	( Mask the nybble off )
+	#30 ORA ( Shift up to '0'-'9' )
+	DUP #39 GTH #07 MUL ADD ( A-F? Add 7 for 'A'-'F' )
+	.Console/write DEO ( Output it )
+	JMP2r
+
+@path $100
+@msg-usage "Usage: 20 "rm 20 "[FILE]... 0d 0a 00
+@msg-error "Error 20 "deleting 20 "file: 0d 0a 00
+@msg-newline 0d 0a 00

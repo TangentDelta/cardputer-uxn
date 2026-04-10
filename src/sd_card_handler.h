@@ -18,8 +18,10 @@ public:
     bool change_dir(const char *path);
     bool mkdir(const char *path);
     bool create_dirs(const char *path);
+    bool remove(const char *path);
     char working_dir[128] = "/";
 protected:
     uint8_t _path_separator = 0;
     const char* _build_path(const char *path);
+    void _restore_path();
 };

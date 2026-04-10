@@ -10,11 +10,7 @@ File SDCardHandler::open(const char *path, const char *mode)
 {
     File f = SD.open(_build_path(path), mode, (mode[0] == 'w') || (mode[0] == 'a'));
     // Restore the working dir if it was modified
-    if(_path_separator != 0)
-    {
-        working_dir[_path_separator] = '\0';
-        _path_separator = 0;
-    }
+    _restore_path();
     return f;
 }
 
@@ -22,22 +18,24 @@ bool SDCardHandler::exists(const char *path)
 {
     bool b = SD.exists(_build_path(path));
     // Restore the working dir if it was modified
-    if(_path_separator != 0)
-    {
-        working_dir[_path_separator] = '\0';
-        _path_separator = 0;
-    }
+    _restore_path();
     return b;
 }
 
 bool SDCardHandler::is_dir(const char *path)
 {
-    if(!exists(path))
+    const char *full_path = _build_path(path);
+    if(!SD.exists(full_path))
+    {
+        _restore_path();
         return false;
+    }
 
-    File f = open(path, "r");
+    File f = open(full_path, "r");
     bool b = f.isDirectory();
     f.close();
+
+    _restore_path();
 
     return b;
 }
@@ -64,12 +62,7 @@ bool SDCardHandler::change_dir(const char *path)
 bool SDCardHandler::mkdir(const char *path)
 {
     bool success = SD.mkdir(_build_path(path));
-    
-    if(_path_separator != 0)
-    {
-        working_dir[_path_separator] = '\0';
-        _path_separator = 0;
-    }
+    _restore_path();
 
     return success;
 }
@@ -106,6 +99,37 @@ bool SDCardHandler::create_dirs(const char *path)
     return true;
 }
 
+bool SDCardHandler::remove(const char* path)
+{
+    const char *full_path = _build_path(path);
+
+    // Check if the path is a directory
+    File f = SD.open(full_path);
+    if(f.isDirectory())
+    {
+        // Check if the directory is empty
+        int file_count = 0;
+        while(f.openNextFile()) file_count++;
+        f.close();
+        if(file_count > 0)
+        {
+            _restore_path();
+            return false;
+        }
+
+        // If the directory is empty, remove it and return success
+        SD.rmdir(full_path);
+        _restore_path();
+        return true;
+    }
+    f.close();  // Don't need the file open any more
+
+    // The path isn't a directory
+    bool b = SD.remove(full_path);   // Delete the file
+    _restore_path();    // Restore the working directory
+    return b;
+}
+
 const char* SDCardHandler::_build_path(const char* path)
 {
     if(path[0] == '/')  // Absolute path?
@@ -117,5 +141,14 @@ const char* SDCardHandler::_build_path(const char* path)
         _path_separator = strlen(working_dir);  // Save the end of the working path
         strcat(working_dir, path);  // Concat the relative path onto the end
         return working_dir;
+    }
+}
+
+void SDCardHandler::_restore_path()
+{
+    if(_path_separator != 0)
+    {
+        working_dir[_path_separator] = '\0';
+        _path_separator = 0;
     }
 }

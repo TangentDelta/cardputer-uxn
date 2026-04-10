@@ -99,5 +99,6 @@ protected:
     void _file_read(uint8_t *device, uint8_t file_index);
     void _file_write(uint8_t *device, uint8_t file_index);
     void _file_stat(uint8_t *device, uint8_t file_index);
+    void _file_delete(uint8_t *device, uint8_t file_index);
     void _file_dir_content(uint8_t *device, uint8_t file_index);
 };

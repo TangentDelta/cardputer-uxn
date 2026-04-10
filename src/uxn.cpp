@@ -296,6 +296,17 @@ void Uxn::_file_stat(uint8_t *device, uint8_t file_index)
 
 }
 
+void Uxn::_file_delete(uint8_t *device, uint8_t file_index)
+{
+	// Check if the file is open and close it
+	if(_file_handle[file_index])
+		_file_close(file_index);
+
+	const char *file_name = _get_filename(device);
+	device[FileDevicePorts::SUCCESS_HI] = 0;
+	device[FileDevicePorts::SUCCESS_LO] = sd_card_handler.remove(file_name) ? 0x01 : 0x00;
+}
+
 void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 {
 	// This assumes that _file_handle[file_index] is not null, and points at a directory!
@@ -384,12 +395,14 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
             if(_console_write) _console_write(value); return;
 		case 0x19:	// Console - Error
 			if(_console_error) _console_error(value); return;
-		case 0xa5:	_file_stat(_devices+0xa0, 0); break;	// File A stat
+		case 0xa5: _file_stat(_devices+0xa0, 0); break;	// File A stat
+		case 0xa6: _file_delete(_devices+0xa0, 0); break;	// File A delete
 		case 0xa7:	// File A append (closes file handle A if open)
 		case 0xa9: if(_file_handle[0]) _file_close(0); break; // File A name (closes file handle A if open)
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
 		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
-		case 0xb5:	_file_stat(_devices+0xb0, 0); break;	// File B stat
+		case 0xb5: _file_stat(_devices+0xb0, 0); break;	// File B stat
+		case 0xb6: _file_delete(_devices+0xb0, 1); break;	// File B delete
 		case 0xb7:	// File B append (closes file handle B if open)
 		case 0xb9: if(_file_handle[1]) _file_close(1); break; // File B name (closes file handle B if open)
 		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File A read
