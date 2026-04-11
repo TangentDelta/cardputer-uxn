@@ -1,11 +1,11 @@
 #include "uxn.h"
 
-Uxn::Uxn(const int ram_size, const int stack_size)
+Uxn::Uxn(uint8_t memory_size, uint8_t stack_size)
 {
-	_ram_size = ram_size;
-	_stack_size = stack_size;
-	_ram_mask = ram_size-1;
-	_stack_mask = stack_size-1;
+	_ram_size = 0x100<<min(memory_size, (uint8_t)8);
+	_stack_size = 0x10<<min(stack_size, (uint8_t)4);
+	_ram_mask = _ram_size-1;
+	_stack_mask = _stack_size-1;
 }
 
 Uxn::~Uxn()

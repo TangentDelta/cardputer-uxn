@@ -13,6 +13,37 @@ enum ShellLexerState
     IN_ARGS
 };
 
+enum class MetadataParserState
+{
+    IN_BODY,
+    AT_COUNT,
+    GET_EXT_ID,
+    GET_EXT_VALUE_HI,
+    GET_EXT_VALUE_LO,
+    FINISHED
+};
+
+enum ShellError
+{
+    ERR_NONE,
+    ERR_TOO_MANY_UXN,   // Tried to start too many Uxn instances
+    ERR_ROM_NAME_LENGTH,    // ROM name is too long
+    ERR_MEMORY, // Out of memory
+    ERR_ROM_NOT_FOUND,  // The file for the ROM was not found
+    ERR_ROM_SIZE,   // The file for the ROM is too large
+    ERR_ROM_LOAD    // The ROM file couldn't be loaded
+};
+
+static const char* const shell_error_strings[] = {
+    [ShellError::ERR_NONE] = "None",
+    [ShellError::ERR_TOO_MANY_UXN] = "Too many instances",
+    [ShellError::ERR_ROM_NAME_LENGTH] = "ROM name too long",
+    [ShellError::ERR_MEMORY] = "Not enough memory",
+    [ShellError::ERR_ROM_NOT_FOUND] = "ROM not found",
+    [ShellError::ERR_ROM_SIZE] = "ROM too large",
+    [ShellError::ERR_ROM_LOAD] = "Error loading ROM"
+};
+
 LGFX_Sprite *canvas;
 Terminal terminal;
 SDCardHandler sd_card_handler;
@@ -20,7 +51,10 @@ SDCardHandler sd_card_handler;
 uint8_t uxn_instance_index = 0;
 Uxn *uxn_instances[8];
 
+const uint8_t metadata_reset_magic[] = {0x80, 0x06, 0x37};
+
 // Shell variables
+ShellError shell_error = ShellError::ERR_NONE;
 uint8_t shell_buffer_index = 0;
 char shell_buffer[SHELL_BUFFER_SIZE];
 char uxn_rom_name[20];
@@ -28,16 +62,109 @@ ShellLexerState shell_lexer_state = IDLE;
 
 unsigned long last_update = 0;
 
+uint8_t ascii_char_to_nybble(char c)
+{
+    if(((c < 'G') && (c > '@')) || ((c < 'g') && (c > '`'))) return (c+9)&0xf;
+    if((c > '0') && (c < ':')) return c&0xf;
+    return 0;
+}
+
 void print_heap_free()
 {
     int free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    terminal.print(String(free).c_str());
-    terminal.print(" bytes free");
-    terminal.cwrite('\n');
+    char buffer[20];
+    snprintf(buffer, 20, "%d bytes free\n", free);
+    terminal.print(buffer);
+}
+
+void print_shell_error(ShellError e)
+{
+    terminal.print(shell_error_strings[e]);
 }
 
 // Method pre-defs
 void shell_print_prompt();
+
+uint8_t get_rom_requirements(File *f)
+{
+    uint8_t rom_sizing = 0x84;  // Default to a ROM of full size
+    // Read the first 6 bytes from the ROM to see if it has metadata
+    uint8_t rom_header[6];
+    for(int i = 0; i < 6; i++)
+    {
+        if(f->available())
+            rom_header[i] = f->read(); 
+    }
+
+    if((rom_header[0] == 0xa0) && (memcmp(rom_header+3, metadata_reset_magic, 3) == 0))
+    {
+        // The ROM has metadata! Now we need to read it into a buffer
+        uint16_t metadata_address = ((rom_header[1] << 8) | rom_header[2]) - 0x100;
+        metadata_address++; // Skip past the Varvara version byte
+        if(!f->seek(metadata_address)) return 0;
+
+        // Now parse the metadata with a big ol' parser
+        MetadataParserState parser_state = MetadataParserState::IN_BODY;
+        uint8_t extedned_field_count = 0;
+        uint8_t ext_id = 0;
+        uint16_t ext_value = 0;
+
+        while(parser_state != MetadataParserState::FINISHED)
+        {
+            if(!f->available()) return 0;   // No more file? Leave
+
+            char c = f->read();
+            switch(parser_state)
+            {
+                case(MetadataParserState::IN_BODY):
+                    // Look for the null terminator for the body
+                    if(c=='\0')
+                        parser_state = MetadataParserState::AT_COUNT;
+                    break;
+                case(MetadataParserState::AT_COUNT):
+                    // We're at the extended field count, so just read it
+                    extedned_field_count = c;
+                    // If there are extended fields we need to read them
+                    // Otherwise we're done
+                    parser_state = extedned_field_count > 0 ? MetadataParserState::GET_EXT_ID : MetadataParserState::FINISHED;
+                    break;
+                case(MetadataParserState::GET_EXT_ID):
+                    ext_id = c;
+                    parser_state = MetadataParserState::GET_EXT_VALUE_HI;
+                    break;
+                case(MetadataParserState::GET_EXT_VALUE_HI):
+                    ext_value = (uint16_t)c << 8;
+                    parser_state = MetadataParserState::GET_EXT_VALUE_LO;
+                    break;
+                case(MetadataParserState::GET_EXT_VALUE_LO):
+                    ext_value |= c;
+                    // Now decode the parameters
+                    switch(ext_id)
+                    {
+                        case(0xf0): // ROM capabilities
+                            // aaaa bbbb cccc dddd (bitfield representation)
+                            // aaaa = Muxn-style memory size. 1-8, ((2^a) * 256)
+                            // bbbb = Muxn-style stack size. 0-4, ((2^b) * 16)
+                            // cccc = Muxn-style screen layers. 0=no screen, 1=bg only, 2=bg+fg
+                            // dddd = Expansion banks needed. 0=no expansion
+                            // Since Cucumber doesn't have the Screen device (or the expansion port)
+                            //  all I really care about are a and b, which can be nicely scrunched into a single byte
+                            rom_sizing=ext_value>>8;
+                    }
+                    // Get the next parameter if there are more
+                    parser_state = (--extedned_field_count != 0) ? MetadataParserState::GET_EXT_ID : MetadataParserState::FINISHED;
+                    break;
+            }
+        }
+    }
+        
+
+    // Try to seek back to the start of the file and return with an error if we can't
+    // Why wouldn't we be able to? No idea.
+    if(!f->seek(0)) return 0;
+
+    return rom_sizing;
+}
 
 /*
 Quick and dirty Uxn ROM loader
@@ -49,12 +176,20 @@ Uxn *load_rom(const char *rom_name)
 
     // Check if there are Uxn instance slots free
     if(uxn_instance_index == 3)
+    {
+        shell_error = ShellError::ERR_TOO_MANY_UXN;
         return nullptr;
+    }
+        
 
     // Check if ROM name is too long
     if(strlen(rom_name) > 15)
+    {
+        shell_error = ShellError::ERR_ROM_NAME_LENGTH;
         return nullptr;
-
+    }
+        
+    // ROM names that start with '!' force the terminal driver into "raw" mode
     bool do_raw = rom_name[0] == '!';
     if(do_raw)  // Skip past the '!' char
         rom_name++;
@@ -64,7 +199,11 @@ Uxn *load_rom(const char *rom_name)
     snprintf(rom_path, 1+strlen(rom_name)+4+1, "%s.rom", rom_name);
 
     if(!sd_card_handler.exists(rom_path))
+    {
+        shell_error = ShellError::ERR_ROM_NOT_FOUND;
         return nullptr;
+    }
+        
 
     /*
     TODO: I know the SDcard handler allocates a lot of new data on the heap whenever a file is opened. 
@@ -74,21 +213,38 @@ Uxn *load_rom(const char *rom_name)
 
     // File doesn't exist
     if(!f)
+    {
+        shell_error = ShellError::ERR_ROM_NOT_FOUND;
         return nullptr;
+    }
 
     // File is larger than Uxn RAM
     if(f.size() > 0xFF00)
+    {
+        // TODO: This code is repeated a lot here. Could this be a macro?
+        f.close();
+        shell_error = ShellError::ERR_ROM_SIZE;
         return nullptr;
+    }
+        
+    uint8_t rom_sizing = get_rom_requirements(&f);
+    if(rom_sizing == 0x00)
+    {
+        f.close();
+        shell_error = ShellError::ERR_ROM_LOAD;
+        return nullptr;
+    }
 
     // Add a new Uxn instance
     // TODO: Automatically size this instance based on the size of the ROM? ROM metadata?
-    Uxn *u = new Uxn();
+    Uxn *u = new Uxn(rom_sizing>>4, rom_sizing&0xf);
     // Initialize the instance
     if(!u->begin())
     {
         // If there's not enough memory, immedaitely delete the new instance and return a nullptr
         f.close();
         delete u;
+        shell_error = ShellError::ERR_MEMORY;
         return nullptr;
     }
     uxn_instances[uxn_instance_index++] = u;
@@ -198,9 +354,22 @@ bool shell_start_instance(const char *shell_word)
     Uxn *new_uxn = load_rom(shell_word);
     if(new_uxn == nullptr)
     {
-        // Issue loading the Uxn instance.
         terminal.print(shell_word);
-        terminal.print("?\n");
+        // Issue loading the Uxn instance
+        if(shell_error != ShellError::ERR_NONE)
+        {
+            // If an error code was provided, print it out
+            terminal.print(": ");
+            print_shell_error(shell_error);
+            terminal.cwrite('\n');
+            shell_error = ShellError::ERR_NONE;
+        }
+        else
+        {
+            // Otherwise just print the name of the offending ROM (but frame is as a sarcastic question)
+            terminal.print("?\n");
+        }
+        
         release_uxn_instances();
         return false;
     }

@@ -4,8 +4,16 @@
 
 |100
 @on-reset ( -> )
+  ;meta #06 DEO2
   dir/print-dir
   BRK
+
+@meta 00 
+  ( Body )
+  00
+  ( Extended metadata )
+  01
+  f0 2000 ( ROM capabilities. 1024 bytes of memory, 16 bytes of stack, and no screen or expansion )
 
 @dir/print-dir ( -> )
   ;dir/name .File1/name DEO2

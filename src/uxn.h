@@ -44,7 +44,7 @@ using UxnDeviceCallback = std::function<void(uint8_t)>;
 class Uxn
 {
 public:
-    Uxn(const int ram_size=0x10000, const int stack_size=0x100);
+    Uxn(uint8_t memory_size=8, uint8_t stack_size=4);
     ~Uxn();
     bool begin();
     unsigned int eval(uint16_t pc);
