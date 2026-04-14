@@ -79,7 +79,9 @@ void print_heap_free()
 
 void print_shell_error(ShellError e)
 {
+    terminal.print("\033[1;31m");
     terminal.print(shell_error_strings[e]);
+    terminal.print("\033[0m");
 }
 
 // Method pre-defs
@@ -344,7 +346,7 @@ void check_uxn_instances()
 void shell_print_prompt()
 {
     print_heap_free();
-    terminal.print("> ");
+    terminal.print("\033[32m>\033[0m ");
 }
 
 // Set up a new Uxn instance given a word from the shell lexer
@@ -637,9 +639,9 @@ void setup()
     // Initialize the SD card handler
     sd_card_handler.begin();
 
-    terminal.print("Cucumber ");
+    terminal.print("\033[1;32mCucumber \033[21;33m");
     terminal.print(GIT_COMMIT);
-    terminal.print("\nCardputer Uxn Environment\n");
+    terminal.print("\n\033[32mCardputer Uxn Environment\033[0m\n");
     shell_print_prompt();
 }
 
