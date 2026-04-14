@@ -404,9 +404,9 @@ void Terminal::_handle_cursor()
             _cursor_row = ROWS-1;
             return;
         }
-        memcpy(_char_buffer, _char_buffer+COLUMNS, (COLUMNS*ROWS)-COLUMNS);
+        memcpy(_char_buffer, _char_buffer+COLUMNS, ((COLUMNS*ROWS)-COLUMNS)*2);
         _cursor_row = ROWS-1;
-        memset(_char_buffer+((COLUMNS*ROWS)-COLUMNS), ' ', COLUMNS);
+        clear(' ', 6);
     }
 }
 
@@ -487,7 +487,6 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
                 if(command_args[0] == 1049)
                     _restore_terminal_state();
                 break;
-            
         }
     }
     else
