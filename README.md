@@ -49,4 +49,4 @@ The value is a 16-bit word, which can be broken down into 4 4-bit nybbles:
 
 ## Terminal Customization
 
-The terminal's colors can be changed in `src/terminal.h` by modifying the defines for `TERMINAL_COLOR_FG` (forground color) and `TERMINAL_COLOR_BG` (background color). The default is amber on black.
+The terminal's color palette and default colors can be changed in `src/terminal.h`. The `TERM_COLOR_*` defines are used to define the 16 colors in the palette (8 "normal", 8 "bright"). The default foreground and bakcground ANSI color indices can be set a little further down by the `_color_default_fg` and `_color_default_bg` member variables.
