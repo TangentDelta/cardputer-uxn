@@ -15,9 +15,51 @@
 #define CURSOR_BLINK_TIME 200
 #define KEYBOARD_UPDATE_INTERVAL 100
 
-// Customizations
-#define TERMINAL_COLOR_FG TFT_ORANGE
-#define TERMINAL_COLOR_BG TFT_BLACK
+// The TFT uses a 16-bit color code
+//   5      6     5
+// RRRRR GGGGGG BBBBB
+// You can find the colors here https://doc-tft-espi.readthedocs.io/tft_espi/colors/
+
+// Standard palette.
+
+#define TERM_COLOR_BLACK       0x0000
+#define TERM_COLOR_RED         0x8000
+#define TERM_COLOR_GREEN       0x0400
+#define TERM_COLOR_YELLOW      0x8400
+#define TERM_COLOR_BLUE        0x0010
+#define TERM_COLOR_MAGENTA     0x8010
+#define TERM_COLOR_CYAN        0x0410
+#define TERM_COLOR_WHITE       0xc618
+#define TERM_COLOR_BRIGHT_BLACK   0x8410
+#define TERM_COLOR_BRIGHT_RED     0xf800
+#define TERM_COLOR_BRIGHT_GREEN   0x07e0
+#define TERM_COLOR_BRIGHT_YELLOW  0xffe0
+#define TERM_COLOR_BRIGHT_BLUE    0x001f
+#define TERM_COLOR_BRIGHT_MAGENTA 0xf81f
+#define TERM_COLOR_BRIGHT_CYAN    0x07ff
+#define TERM_COLOR_BRIGHT_WHITE   0xffff
+
+
+// Retro "amber" color palette
+/*
+#define TERM_COLOR_BLACK          0x0000
+#define TERM_COLOR_RED            0xa000
+#define TERM_COLOR_GREEN          0x0580
+#define TERM_COLOR_YELLOW         0x8be0
+#define TERM_COLOR_BLUE           0x0008
+#define TERM_COLOR_MAGENTA        0x8008
+#define TERM_COLOR_CYAN           0x0580
+#define TERM_COLOR_WHITE          0x8b00
+
+#define TERM_COLOR_BRIGHT_BLACK   0x8be0
+#define TERM_COLOR_BRIGHT_RED     0xf800
+#define TERM_COLOR_BRIGHT_GREEN   0x07e0
+#define TERM_COLOR_BRIGHT_YELLOW  0xfd20
+#define TERM_COLOR_BRIGHT_BLUE    0x001f
+#define TERM_COLOR_BRIGHT_MAGENTA 0xf810
+#define TERM_COLOR_BRIGHT_CYAN    0x07f0
+#define TERM_COLOR_BRIGHT_WHITE   0xfd20
+*/
 
 using OnKeyboardCallback = std::function<void(const uint8_t)>;
 
@@ -34,11 +76,24 @@ enum class EscapeState
     PARAMS  // Accumulating parameters
 };
 
+enum ANSIColors
+{
+    ANSI_COLOR_BLACK,
+    ANSI_COLOR_RED,
+    ANSI_COLOR_GREEN,
+    ANSI_COLOR_YELLOW,
+    ANSI_COLOR_BLUE,
+    ANSI_COLOR_MAGENTA,
+    ANSI_COLOR_CYAN,
+    ANSI_COLOR_WHITE,
+    ANSI_COLOR_DEFAULT
+};
+
 struct TerminalState
 {
     uint8_t cursor_row = 0;
     uint8_t cursor_col = 0;
-    char char_buffer[COLUMNS * ROWS];
+    uint16_t char_buffer[COLUMNS * ROWS];
 };
 
 class Terminal
@@ -48,6 +103,7 @@ public:
     void update();
     void cwrite(const char c);
     void print(const char *s);
+    void char_fill(uint16_t *start, char c, uint16_t count);
     void clear(const char c = ' ', const uint8_t mode = 2);
     void set_mode(TerminalFlag flag, bool flag_state);
 
@@ -77,7 +133,7 @@ protected:
     void _canon_send();
 
     // Character buffer
-    char _char_buffer[COLUMNS * ROWS];
+    uint16_t _char_buffer[COLUMNS * ROWS];
     bool _dirty = false;    // Has the character buffer been modified since the last update?
 
     // Escape sequence handling
@@ -87,6 +143,34 @@ protected:
 
     // Alternate buffer
     struct TerminalState *_prev_state;
+
+    // Terminal attributes
+    uint8_t _current_attributes;    // The current character attributes!
+    uint8_t _color_default_fg = ANSIColors::ANSI_COLOR_WHITE;   // Default foreground text color
+    uint8_t _color_default_bg = ANSIColors::ANSI_COLOR_BLACK;   // Default background text color
+    // 7 - Inverted
+    // 6 - Bold
+    // 5-3 - FG color index
+    // 2-0 - BG color index
+    uint16_t _palette[16] = {
+        TERM_COLOR_BLACK,
+        TERM_COLOR_RED,
+        TERM_COLOR_GREEN,
+        TERM_COLOR_YELLOW,
+        TERM_COLOR_BLUE,
+        TERM_COLOR_MAGENTA,
+        TERM_COLOR_CYAN,
+        TERM_COLOR_WHITE,
+        // "Bold" colors
+        TERM_COLOR_BRIGHT_BLACK,
+        TERM_COLOR_BRIGHT_RED,
+        TERM_COLOR_BRIGHT_GREEN,
+        TERM_COLOR_BRIGHT_YELLOW,
+        TERM_COLOR_BRIGHT_BLUE,
+        TERM_COLOR_BRIGHT_MAGENTA,
+        TERM_COLOR_BRIGHT_CYAN,
+        TERM_COLOR_BRIGHT_WHITE
+    };
 
     OnKeyboardCallback _on_keyboard = nullptr;
 
@@ -98,4 +182,5 @@ protected:
     void _send_cursor_position_response();
     void _save_terminal_state();
     void _restore_terminal_state();
+    void _escape_color_graphic_handler(const int *args, const int arg_count);
 };

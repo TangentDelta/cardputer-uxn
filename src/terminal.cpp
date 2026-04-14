@@ -10,6 +10,7 @@ void Terminal::begin(LGFX_Sprite* canvas, OnKeyboardCallback keyboard_callback)
     memset(_canon_buffer, '\0', sizeof(_canon_buffer));
 
     // Prepare the initial terminal state
+    _current_attributes = (_color_default_fg << 3) | _color_default_bg; // Set the background to black and foreground to white
     clear();
     _render_terminal();
     _dirty = false;
@@ -149,7 +150,7 @@ void Terminal::cwrite(const char c)
                     _cursor_row--;
                 }
             }
-            _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ';
+            _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = ' ' | (_current_attributes<<8);
             break;
         case '\033':    // Escape
             _escape_state = EscapeState::ESCAPE;
@@ -167,7 +168,7 @@ void Terminal::cwrite(const char c)
             else
             {
                 // Anything else, just write the character to the buffer
-                _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = c;
+                _char_buffer[(_cursor_row*COLUMNS) + _cursor_col] = c | (_current_attributes<<8);
                 // and advance to the next position
                 _cursor_col++;
                 break;
@@ -192,17 +193,23 @@ void Terminal::print(const char *s)
     
 }
 
+void Terminal::char_fill(uint16_t *start, char c, uint16_t count)
+{
+    for(int i=0; i < count; i++)
+        *start++ = c | (_current_attributes<<8);
+}
+
 void Terminal::clear(const char c, const uint8_t mode)
 {
     _dirty = true;
     switch(mode)
     {
-        case(0): memset(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, (ROWS*COLUMNS)-(_cursor_col+(_cursor_row*COLUMNS))); break;  // Mode 0 - From cursor to end of screen
-        case(1): memset(_char_buffer, c, (_cursor_col+(_cursor_row*COLUMNS))); break; // Mode 1 - From cursor to beginning of screen
-        case(2): memset(_char_buffer, c, ROWS*COLUMNS); break;  // Mode 2 - Entire screen
-        case(4): memset(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, ROWS-_cursor_row); // Mode 4 - Cursor to end of line
-        case(5): memset(_char_buffer+(_cursor_row*COLUMNS), c, _cursor_col);    // Mode 5 - Start of line to cursor
-        case(6): memset(_char_buffer+(_cursor_row*COLUMNS), c, COLUMNS);    // Mode 6 - Entire row
+        case(0): char_fill(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, (ROWS*COLUMNS)-(_cursor_col+(_cursor_row*COLUMNS))); break;  // Mode 0 - From cursor to end of screen
+        case(1): char_fill(_char_buffer, c, (_cursor_col+(_cursor_row*COLUMNS))); break; // Mode 1 - From cursor to beginning of screen
+        case(2): char_fill(_char_buffer, c, ROWS*COLUMNS); break;  // Mode 2 - Entire screen
+        case(4): char_fill(_char_buffer+(_cursor_col+(_cursor_row*COLUMNS)), c, ROWS-_cursor_row); // Mode 4 - Cursor to end of line
+        case(5): char_fill(_char_buffer+(_cursor_row*COLUMNS), c, _cursor_col);    // Mode 5 - Start of line to cursor
+        case(6): char_fill(_char_buffer+(_cursor_row*COLUMNS), c, COLUMNS);    // Mode 6 - Entire row
     }
     
     // Should this reset the curosr position too?
@@ -334,27 +341,40 @@ Private Methods
  // Render the character buffer to the LCD
 void Terminal::_render_terminal()
 {
-    _canvas->fillScreen(TERMINAL_COLOR_BG);
+    _canvas->fillScreen(TERM_COLOR_BLACK);
     _canvas->setFont(&fonts::Font8x8C64);
     _canvas->setTextSize(1);
-    _canvas->setBaseColor(TERMINAL_COLOR_BG);
-    _canvas->setTextColor(TERMINAL_COLOR_FG, TERMINAL_COLOR_BG);
 
     // Write each row to the display
-    char row_buffer[COLUMNS+1];
-    row_buffer[COLUMNS] = '\0';
+    char row_buffer[COLUMNS+1] = {0};
+    // Populate the row buffer with the character portion of the character buffer
 
+
+    uint16_t *p = _char_buffer;
+    const uint16_t cursor_index = _cursor_col + (_cursor_row*COLUMNS);
+    uint16_t current_char_index = 0;
     for(int row = 0; row < ROWS; row++)
     {
-        int i = row * COLUMNS;
-        memcpy(row_buffer, _char_buffer+i, COLUMNS);
         _canvas->setCursor(0,row*FONT_HEIGHT);
-        _canvas->print(row_buffer);
-    }
+        for(int column=0; column < COLUMNS; column++)
+        {
+            bool do_blink = _cursor_blink && (row==_cursor_row) && (column==_cursor_col);
+            uint16_t c_data = *(p++);
+            if(((c_data & 0x8000) == 0)!=do_blink) // XOR the mode with the cursor blink
+            {
+                // Normal mode (not inverted)
+                _canvas->setTextColor(_palette[(c_data>>11)&0xf], _palette[(c_data>>8)&0x7]);
+            }
+            else
+            {
+                // Inverted mode
+                // How does "bold" apply to inverted colors?
+                _canvas->setTextColor(_palette[(c_data>>8)&0x7], _palette[(c_data>>11)&0xf]);
+            }
 
-    // Now render the cursor
-    _canvas->setColor(_cursor_blink ? TERMINAL_COLOR_FG : TERMINAL_COLOR_BG);
-    _canvas->drawRect(_cursor_col*FONT_WIDTH, _cursor_row*FONT_HEIGHT, FONT_WIDTH, FONT_HEIGHT);
+            _canvas->write(c_data&0xff);
+        }
+    }
 
     _canvas->pushSprite(0, 0);
 }
@@ -489,8 +509,7 @@ void Terminal::_dispatch_escape_sequence(const char *params, char c)
                 _cursor_col = max(0,(int)_cursor_col - command_args[0]); break;
             case 'J': clear(' ', command_args[0]); break; // Erase screen
             case 'K': clear(' ', command_args[0]+4); break; // Erase line
-            case 'm':   // Color/graphics mode
-                break;
+            case 'm': _escape_color_graphic_handler(command_args, arg_count); break;   // Color/graphics mode
             case 'n':
                 if(command_args[0] == 6)    // Cursor position request
                     _send_cursor_position_response();
@@ -523,7 +542,7 @@ void Terminal::_save_terminal_state()
     _prev_state = new TerminalState;
     _prev_state->cursor_col = _cursor_col;
     _prev_state->cursor_row = _cursor_row;
-    memcpy(_prev_state->char_buffer, _char_buffer, ROWS*COLUMNS);
+    memcpy(_prev_state->char_buffer, _char_buffer, ROWS*COLUMNS*sizeof(uint16_t));
 
     _cursor_row = 0;
     _cursor_col = 0;
@@ -538,9 +557,46 @@ void Terminal::_restore_terminal_state()
 
     _cursor_col = _prev_state->cursor_col;
     _cursor_row = _prev_state->cursor_row;
-    memcpy(_char_buffer, _prev_state->char_buffer, ROWS*COLUMNS);
+    memcpy(_char_buffer, _prev_state->char_buffer, ROWS*COLUMNS*sizeof(uint16_t));
     _dirty = true;
 
     free(_prev_state);
     _prev_state = nullptr;
+}
+
+// The color/graphic mode command is complex enough that it dispatches to its own handler
+void Terminal::_escape_color_graphic_handler(const int *args, const int arg_count)
+{
+    for(int i = 0; i < arg_count; i++)
+    {
+        int arg = args[i];
+        uint8_t arg_mode = arg/10;
+        uint8_t arg_submode = arg%10;
+        switch(arg_mode)
+        {
+            case(0):    // Graphics mode setters
+                switch(arg_submode)
+                {
+                    case(0): _current_attributes = (_color_default_fg << 3) | _color_default_bg; break;    // Reset all modes
+                    case(1): _current_attributes |= 0x40; break;    // Set bold mode
+                    case(7): _current_attributes |= 0x80; break;    // Set inverted mode 
+                }
+                break;
+            case(2):    // Graphics mode resetters
+                switch(arg_submode)
+                {
+                    case(1): _current_attributes &= ~0x40; break;    // Reset bold mode
+                    case(7): _current_attributes &= ~0x80; break;    // Reset inverted mode 
+                }
+                break;
+            case(3):    // Foreground color
+                if(arg_submode>7) arg_submode = _color_default_fg;
+                _current_attributes = (_current_attributes&~0x38) | (arg_submode<<3);
+                break;
+            case(4):    // Background color
+                if(arg_submode>7) arg_submode = _color_default_bg;
+                _current_attributes = (_current_attributes&~7) | arg_submode;
+                break;
+        }
+    }
 }

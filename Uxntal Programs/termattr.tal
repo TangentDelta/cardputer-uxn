@@ -1,0 +1,26 @@
+|10 @Console/vector $2 &read $5 &type $1 &write $1 &error $1
+
+|100
+@on-reset ( -> )
+    ;meta #06 DEO2
+    ;test-str str/<print>
+    BRK
+
+
+@meta 00 
+	( Body )
+	00
+	( Extended metadata )
+	01
+	f0 1000 ( ROM capabilities. 1024 bytes of memory, 16 bytes of stack, and no screen or expansion )
+
+@str/<print> ( str* -- )
+	LDAk DUP ?{ POP POP2 JMP2r }
+	.Console/write DEO
+	INC2 !/<print>
+
+@test-str
+    1b "[30m30 1b "[31m31 1b "[32m32 1b "[33m33 1b "[34m34 1b "[35m35 1b "[36m36 1b "[37m37 0a 0d
+    1b "[1;30m30 1b "[31m31 1b "[32m32 1b "[33m33 1b "[34m34 1b "[35m35 1b "[36m36 1b "[37m37 0a 0d
+    1b "[21;37m 1b "[40m40 1b "[41m41 1b "[42m42 1b "[43m43 1b "[44m44 1b "[45m45 1b "[46m46 1b "[47m47 0a 0d
+    1b "[0m 1b "[7mInverted! 1b "[0m $1
