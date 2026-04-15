@@ -34,6 +34,9 @@ bool Uxn::begin()
 	_stk[0] = (uint8_t*)malloc(_stack_size * sizeof(uint8_t));
 	_stk[1] = (uint8_t*)malloc(_stack_size * sizeof(uint8_t));
 
+	// Fill everything with 0
+	memset(_stk[0], 0, _stack_size);
+	memset(_stk[1], 0, _stack_size);
 	memset(_ram, 0, _ram_size);
 	memset(_devices, 0, 256);
 
@@ -319,50 +322,61 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 
 	// Directory listing variables
 	uint16_t bytes_written = 0;
-	char dir_entry_buffer[32];
 
 	File& file_handle = _file_handle[file_index];
 
-	File f = file_handle.openNextFile();
-	while(f)
+	char *stat_buffer = _working_file_stat+(file_index<<5);
+	File f;
+	for(;;)
 	{
+		// Send out the file stat line
+		// This is done first in case the stat sending was previously interrupted
+		char *p = stat_buffer;	// Reset the pointer to the start of the stat buffer
+		while(*p != '\0')
+		{
+			// It's not mentioned in the documentation but each directrory chunk is null-terminated
+			
+			if(bytes_written < (buffer_length-1))
+			{
+				_ram[dest_addr+(bytes_written++)] = *(p++);
+			}
+			else
+			{
+				strcpy(stat_buffer, p);	// Shift the stat string by as many bytes as we've written
+				_ram[dest_addr+bytes_written] = '\0';	// Null-terminate the chunk
+				device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+				device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
+				if(f) f.close();
+				return;
+			}
+		}
+
+		// If we're here, we're ready for the next stat line
+
+		stat_buffer[0] = '\0';	// Null-terminate the buffer to make sure it doesn't get written again if we're done
+		_ram[dest_addr+(bytes_written)] = 0;	// Null-terminate the end chunk too
+
+		f = file_handle.openNextFile();	// Get the next file
+
+		if(!f)
+		{
+			// No more files!
+			f.close();
+			device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
+			device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
+			return;
+		}
+
+		// Construct a new stat entry
 		if(f.isDirectory())
-			snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "---- %.25s/\n", f.name());
+			snprintf(stat_buffer, 31, "---- %.25s/\n", f.name());
 		else
 		{
 			unsigned long file_size = f.size();
-			if(file_size > 0xffff)
-				snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "???? %.26s\n", f.name());
-			else
-				snprintf(dir_entry_buffer, sizeof(dir_entry_buffer), "%04x %.26s\n", file_size, f.name());
+			if(file_size > 0xffff) snprintf(stat_buffer, 31, "???? %.25s\n", f.name());
+			else snprintf(stat_buffer, 31, "%04x %.25s\n", file_size, f.name());
 		}
-
-
-		for(int i=0; i < 32; i++)
-		{
-			if(bytes_written < buffer_length)
-			{
-				char c = dir_entry_buffer[i];
-				if(c == '\0')
-					break;
-				_ram[dest_addr+(bytes_written++)] = c;
-			}
-			else
-			{
-				device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
-				device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
-				f.close();
-				return;
-			}
-			
-		}
-
-		f = file_handle.openNextFile();
 	}
-
-	f.close();
-	device[FileDevicePorts::SUCCESS_HI] = bytes_written>>8;
-	device[FileDevicePorts::SUCCESS_LO] = bytes_written&0xff;
 }
 
 uint8_t Uxn::_dei(const uint8_t port)

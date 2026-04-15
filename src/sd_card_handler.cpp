@@ -136,6 +136,11 @@ const char* SDCardHandler::_build_path(const char* path)
     {
         return path;
     }
+    else if(path[0] == '.') // Working directory?
+    {
+        // TODO: Handle relative to wirking directory cases like "./foo_bar"
+        return working_dir; // Just return the working directory
+    }
     else    // If not absolute, it's a realtive path
     {
         _path_separator = strlen(working_dir);  // Save the end of the working path

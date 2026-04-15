@@ -94,6 +94,7 @@ protected:
     uint16_t _file_ptr;
     File _file_handle[2];
     FileHandleState _file_handle_state[2] = {FileHandleState::closed};
+    char _working_file_stat[64] = {0};    // Used to hold the file stat line in case it gets cut off in the middle
     const char *_get_filename(uint8_t *device);    // Get the filename from File/name*
     void _file_close(uint8_t file_index);
     void _file_read(uint8_t *device, uint8_t file_index);

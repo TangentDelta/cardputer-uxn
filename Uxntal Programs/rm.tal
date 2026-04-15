@@ -8,56 +8,64 @@
 
 |100
 @on-reset
-    .Console/type DEI ?{ ;msg-usage string-print !terminate-error }
+	;meta #06 DEO2
+	.Console/type DEI ?{ ;msg-usage string-print !terminate-error }
 	;on-console-args .Console/vector DEO2
 	;path .File1/name DEO2
-    ;path .ptr STZ2
+	;path .ptr STZ2
 	BRK
 
+@meta 00 
+	( Body )
+	00
+	( Extended metadata )
+	01
+	f0 2000 ( ROM capabilities )
+
 @on-console-args
-    .do-terminate LDZ #00 EQU ?{ BRK }
+	.do-terminate LDZ #00 EQU ?{ BRK }
 	.Console/type DEI #02 EQU ?on-arg
-    .Console/type DEI #03 EQU ?on-spacer
-    .Console/type DEI #04 EQU ?on-end
+	.Console/type DEI #03 EQU ?on-spacer
+	.Console/type DEI #04 EQU ?on-end
 	BRK
 
 @on-arg
-    .Console/read DEI
-    .ptr LDZ2 INC2k .ptr STZ2
-    STA BRK
+	.Console/read DEI
+	.ptr LDZ2 INC2k .ptr STZ2
+	STA BRK
 
 @on-end
-    #01 .do-terminate STZ
-    ( Falls through to on-spacer )
+	#01 .do-terminate STZ
+	( Falls through to on-spacer )
 
 @on-spacer
-    #00 .ptr LDZ2 STA 
-    ;path .ptr STZ2
-    #01 .File1/delete DEO
-    ( Check if the file was deleted )
-    .File1/success DEI2 ORA ?{
-        ( If it wasn't, display an error )
-        ;msg-error string-print
-        ;path string-print
-        ;msg-newline string-print
-        !terminate-error
-    }
-    .do-terminate LDZ ?terminate-okay
-    BRK
+	#00 .ptr LDZ2 STA 
+	;path .ptr STZ2
+	#01 .File1/delete DEO
+	( Check if the file was deleted )
+	.File1/success DEI2 ORA ?{
+		( If it wasn't, display an error )
+		;msg-error string-print
+		;path string-print
+		;msg-newline string-print
+		!terminate-error
+	}
+	.do-terminate LDZ ?terminate-okay
+	BRK
 
 @string-print ( string-ptr -- )
-    LDAk DUP ?{ POP POP2 JMP2r }
-    #18 DEO
-    INC2 !string-print
+	LDAk DUP ?{ POP POP2 JMP2r }
+	#18 DEO
+	INC2 !string-print
 
 @terminate-error
-    #01 .do-terminate STZ
-    #01 .System/state DEO
-    BRK
+	#01 .do-terminate STZ
+	#01 .System/state DEO
+	BRK
 
 @terminate-okay
-    #80 .System/state DEO
-    BRK
+	#80 .System/state DEO
+	BRK
 
 @path $100
 @msg-usage "Usage: 20 "rm 20 "[FILE]... 0d 0a 00
