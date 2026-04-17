@@ -3,6 +3,8 @@
 #include "terminal.h"
 #include "uxn.h"
 #include "sd_card_handler.h"
+#include "wifi_handler.h"
+#include "tinyini.h"
 
 #define SHELL_BUFFER_SIZE 64
 
@@ -46,6 +48,7 @@ static const char* const shell_error_strings[] = {
 
 LGFX_Sprite *canvas;
 Terminal terminal;
+WiFiHandler wifi_handler;
 SDCardHandler sd_card_handler;
 
 uint8_t uxn_instance_index = 0;
@@ -75,6 +78,25 @@ void print_heap_free()
     char buffer[20];
     snprintf(buffer, 20, "%d bytes free\n", free);
     terminal.print(buffer);
+}
+
+void print_status_char(char status_char, uint8_t color)
+{
+    char buffer[30];
+    snprintf(buffer, 30, "\0337\033[1;30H\033[%dm%c\033[0m\0338", color, status_char);
+    terminal.print(buffer);
+}
+
+void wifi_failure()
+{
+    // Put a little red X in the upper-right corner
+    print_status_char('X', 31);
+}
+
+void wifi_connected()
+{
+    // Put a little green C in the upper-right corner
+    print_status_char('C', 32);
 }
 
 void print_shell_error(ShellError e)
@@ -265,6 +287,11 @@ Uxn *load_rom(const char *rom_name)
     // This will eventually be a more general filesystem handler...
     u->sd_card_handler = sd_card_handler;
 
+    // tell it about the status of the wifi
+    bool wifi_okay = wifi_handler.get_status() == 0x03;
+    u->wifi_connected = wifi_okay;
+    u->dev_poke(74, wifi_okay ? 0x01 : 0x80);
+
     if(do_raw)
         terminal.set_mode(TerminalFlag::FLAG_CANONICAL, false);
 
@@ -298,8 +325,6 @@ void wire_uxn_instances()
         }
     }
 
-    // TODO: Wire up the first Uxn instance to the terminal's keyboard
-
     // Set up the first instance for setting tty flags
     uxn_instances[0]->dev_poke(0x16, 0x80);
     uxn_instances[0]->set_deo_callback(0x16, terminal_uxn_stty);
@@ -316,7 +341,7 @@ void release_uxn_instances()
     {
         // Tell the instance that it is being shut down
         if(uxn_instances[i]->console_vector_set)
-            uxn_instances[i]->console_vector(0x0a, ConsoleType::type_argument_end);
+            uxn_instances[i]->console_vector(0x0a, Uxn::ConsoleType::type_argument_end);
 
         delete uxn_instances[i];
     }
@@ -337,6 +362,11 @@ void check_uxn_instances()
             release_uxn_instances();
             terminal.cwrite('\n');
             shell_print_prompt();
+        }
+        else
+        {
+            // Instance is alive, run its housekeeping method
+            uxn_instances[i]->update();
         }
     }
 }
@@ -537,7 +567,7 @@ void shell_process_buffer()
                 {
                     // Only terminate the arguments if there are actually arguments!
                     if(arg_count > 0)
-                        u->console_vector(0xa, ConsoleType::type_argument_end);
+                        u->console_vector(0xa, Uxn::ConsoleType::type_argument_end);
                     break;
                 }
 
@@ -553,14 +583,14 @@ void shell_process_buffer()
                 {
                     arg_count++;
                     if(first_printable)
-                        u->console_vector(0xa, ConsoleType::type_argument_spacer);
+                        u->console_vector(0xa, Uxn::ConsoleType::type_argument_spacer);
                     else
                         first_printable = true;
 
                     space_skip = false;
                 }
 
-                u->console_vector(c, ConsoleType::type_argument);
+                u->console_vector(c, Uxn::ConsoleType::type_argument);
             }
         }
 
@@ -625,10 +655,59 @@ void shell_on_key(const uint8_t c)
     }
 }
 
+// Attempts to load settings from "/settings.ini" off of the SD card
+void load_settings()
+{
+    // Some quick sanity checks before we try loading the file
+    if(!sd_card_handler.okay)
+    {
+        print_status_char('S', 31); // Red S
+        return;
+    }
+
+    if(!sd_card_handler.exists("/settings.ini"))
+    {
+        print_status_char('i', 33); // Yello i
+        return;
+    }
+
+    File f = sd_card_handler.open("/settings.ini", "r");
+    if(!f)
+    {
+        print_status_char('i', 33); // Yellow i
+        f.close();
+        return;
+    }
+
+    TinyINI<2,4,32> ini;
+
+    uint8_t section_wifi = ini.register_section("wifi");
+    ini.register_key(section_wifi, "ssid", [](const char *s){ wifi_handler.set_ssid(s); });
+    ini.register_key(section_wifi, "password", [](const char *s){ wifi_handler.set_password(s); });
+
+    while(f.available())
+    {
+        if(ini.parse(f.read()) != TinyINIStatus::OKAY)
+        {
+            print_status_char('i', 31); // Red i
+            f.close();
+            return;
+
+        }
+    }
+    ini.finish();
+    f.close();
+}
+
 void setup()
 {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
+
+    // Set up WiFi
+    wifi_handler.begin();
+    wifi_handler.on_connect_fail(wifi_failure);
+    wifi_handler.on_connect_success(wifi_connected);
 
     // Set up the screen and the terminal
     canvas = new LGFX_Sprite(&M5Cardputer.Display);
@@ -638,6 +717,9 @@ void setup()
 
     // Initialize the SD card handler
     sd_card_handler.begin();
+
+    // Load the settings
+    load_settings();
 
     terminal.print("\033[1;32mCucumber \033[21;33m");
     terminal.print(GIT_COMMIT);
@@ -649,5 +731,6 @@ void loop()
 {
     check_uxn_instances();
     M5Cardputer.update();
+    wifi_handler.update();
     terminal.update();
 }

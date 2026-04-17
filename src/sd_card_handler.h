@@ -20,6 +20,7 @@ public:
     bool create_dirs(const char *path);
     bool remove(const char *path);
     char working_dir[128] = "/";
+    bool okay = false;
 protected:
     uint8_t _path_separator = 0;
     const char* _build_path(const char *path);

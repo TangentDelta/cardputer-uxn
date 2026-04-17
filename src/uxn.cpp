@@ -15,6 +15,9 @@ Uxn::~Uxn()
 		_file_handle[0].close();
 	if(_file_handle[1])
 		_file_handle[1].close();
+
+	// Close the socket
+	_socket_close();
 	
 	// Free up the heap memory that we allocated
 	free(_ram);
@@ -41,6 +44,18 @@ bool Uxn::begin()
 	memset(_devices, 0, 256);
 
 	return true;
+}
+
+void Uxn::update()
+{
+	if(_socket_nc != nullptr)
+	{
+		uint16_t socket_vector = (_devices[DEVICE_SOCKET_VECTOR_HI] << 8) | _devices[DEVICE_SOCKET_VECTOR_LO];
+		if(socket_vector!=0)
+		{
+			if(_socket_nc->available() > 0) eval(socket_vector);
+		}
+	}
 }
 
 /*
@@ -164,10 +179,10 @@ Optionally provide the value type as well
 */
 void Uxn::console_vector(uint8_t value, ConsoleType value_type)
 {
-	_devices[0x12] = value;
-	_devices[0x17] = value_type;
-	uint16_t console_vector_ptr = _devices[0x10]<<8;
-	console_vector_ptr |= _devices[0x11];
+	_devices[DEVICE_CONSOLE_READ] = value;
+	_devices[DEVICE_CONSOLE_TYPE] = value_type;
+	uint16_t console_vector_ptr = _devices[DEVICE_CONSOLE_VECTOR_HI]<<8;
+	console_vector_ptr |= _devices[DEVICE_CONSOLE_VECTOR_LO];
 	if(console_vector_ptr != 0)
 		eval(console_vector_ptr);
 }
@@ -379,12 +394,113 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	}
 }
 
+/* Socket Device */
+void Uxn::_socket_close()
+{
+	if(_socket_nc == nullptr) return;
+	_socket_nc->stop();
+	delete _socket_nc;
+	_socket_nc = nullptr;
+}
+
+void Uxn::_socket_connect()
+{
+	_socket_close();	// Close out of an existing socket
+
+	// Make sure the wifi is connected
+	if(!wifi_connected)
+	{
+		_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_NETWORK;
+		return;
+	}
+
+	uint16_t command_addr = (_devices[DEVICE_SOCKET_COMMAND_HI] << 8) | _devices[DEVICE_SOCKET_COMMAND_LO];
+	const char *command = (char*)(_ram+command_addr);
+
+	// Preload the status port with the unsuccessful value
+	_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_PARSE;	// Error parsing connect command
+
+	// Check what protocol to use
+	bool mode_tcp = (strncmp(command, "TCP", 3) == 0);
+
+	char host[64];
+
+	// Identify the port to connect to
+	uint16_t port = 0;
+	const char *port_start = command;
+	while((*port_start != '\0') && (*port_start != ':')) port_start++;
+	if(*port_start == ':') port = atoi(port_start+1);
+
+	// Return if the port wasn't found or this isn't TCP mode
+	if((port == 0) || !mode_tcp) return;
+
+	uint8_t hostname_length = (port_start-command)-4;
+
+	// Return if the hostname is too long
+	if(hostname_length>63) return;
+
+	memcpy(host, command+4, hostname_length);	// Copy the host to connect to into the buffer
+	host[hostname_length] = 0;
+	/*
+	Command structure
+	TCP 192.168.0.5:80
+	TCP foo.bar:73
+	*/
+	_socket_nc = new NetworkClient;
+	if(!_socket_nc->connect(host, port))
+	{
+		_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_CONN;	// Error connecting to host
+		_socket_close();
+		return;
+	}
+
+	_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_SUCCESS;	// Success
+}
+
+void Uxn::_socket_read()
+{
+	_devices[DEVICE_SOCKET_SUCCESS_HI] = 0;
+	_devices[DEVICE_SOCKET_SUCCESS_LO] = 0;
+
+	uint16_t buffer_length = (_devices[DEVICE_SOCKET_LENGTH_HI] << 8) | _devices[DEVICE_SOCKET_READ_LO];
+	uint16_t dest_addr = (_devices[DEVICE_SOCKET_READ_HI] << 8) | _devices[DEVICE_SOCKET_READ_LO];
+	if((dest_addr+buffer_length) > _ram_size) return;	// Buffer extends past the available memory!
+	uint16_t bytes_written = min(_socket_nc->available(), (int)buffer_length);
+
+	// Read into the buffer
+	_socket_nc->readBytes(_ram+dest_addr, buffer_length);
+
+	// Report how many bytes were read
+	_devices[DEVICE_SOCKET_SUCCESS_HI] = bytes_written >> 8;
+	_devices[DEVICE_SOCKET_SUCCESS_LO] = bytes_written & 0xff;
+}
+
+void Uxn::_socket_write()
+{
+	_devices[DEVICE_SOCKET_SUCCESS_HI] = 0;
+	_devices[DEVICE_SOCKET_SUCCESS_LO] = 0;
+
+	if(_socket_nc == nullptr) return;	// Since the Uxn core can call this, we need to make sure the socket is valid before we use it!
+
+	uint16_t buffer_length = (_devices[DEVICE_SOCKET_LENGTH_HI] << 8) | _devices[DEVICE_SOCKET_LENGTH_LO];
+	uint16_t source_addr = (_devices[DEVICE_SOCKET_WRITE_HI] << 8) | _devices[DEVICE_SOCKET_WRITE_LO];
+	if((source_addr+buffer_length) > _ram_size) return;	// Buffer extends past the available memory!
+	if(!_socket_nc->write(_ram+source_addr, buffer_length))
+	{
+		// Some sort of error happened while writing to the socket
+		_devices[SOCK_STAT_ERR_WRITE] = 3;
+		return;
+	}
+	_devices[DEVICE_SOCKET_SUCCESS_HI] = buffer_length >> 8;
+	_devices[DEVICE_SOCKET_SUCCESS_LO] = buffer_length & 0xff;
+}
+
 uint8_t Uxn::_dei(const uint8_t port)
 {
 	switch(port)
 	{
-		case 0x04:	return _ptr[0]; // System - wst
-		case 0x05:	return _ptr[1]; // System - rst
+		case DEVICE_SYSTEM_WST:	return _ptr[0]; // System - wst
+		case DEVICE_SYSTEM_RST:	return _ptr[1]; // System - rst
 	}
 	return _devices[port];
 }
@@ -394,27 +510,38 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 	_devices[port] = value;
     switch(port)
     {
-		case 0x04:	_ptr[0] = value; break; // System - wst
-		case 0x05:	_ptr[1] = value; break; // System - rst
-		case 0x0f:	// System - State
+		/* System */
+		case DEVICE_SYSTEM_WST:	_ptr[0] = value; break; // System - wst
+		case DEVICE_SYSTEM_RST:	_ptr[1] = value; break; // System - rst
+		case DEVICE_SYSTEM_STATE:	// System - State
 			alive = (value == 0); break;
-		case 0x10:	// Console - Vector
-		case 0x11:
+
+		/* Console */
+		case DEVICE_CONSOLE_VECTOR_HI:	// Console - Vector
+		case DEVICE_CONSOLE_VECTOR_LO:
 			console_vector_set = true;
 			alive = true;	// Mark this Uxn instance as alive and having a vector
 			break;
-		case 0x16:	// Console - Stty
+		case DEVICE_CONSOLE_STTY:	// Console - Stty
 			if(_console_stty) _console_stty(value); return;
-        case 0x18:  // Console - Write
+        case DEVICE_CONSOLE_WRITE:  // Console - Write
             if(_console_write) _console_write(value); return;
-		case 0x19:	// Console - Error
+		case DEVICE_CONSOLE_ERROR:	// Console - Error
 			if(_console_error) _console_error(value); return;
+
+		/* Socket */
+		case DEVICE_SOCKET_COMMAND_LO: _socket_connect(); break;
+		case DEVICE_SOCKET_WRITE_LO: _socket_write(); break;
+
+		/* File A */
 		case 0xa5: _file_stat(_devices+0xa0, 0); break;	// File A stat
 		case 0xa6: _file_delete(_devices+0xa0, 0); break;	// File A delete
 		case 0xa7:	// File A append (closes file handle A if open)
 		case 0xa9: if(_file_handle[0]) _file_close(0); break; // File A name (closes file handle A if open)
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
-		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File B write
+		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File A write
+
+		/* File B */
 		case 0xb5: _file_stat(_devices+0xb0, 0); break;	// File B stat
 		case 0xb6: _file_delete(_devices+0xb0, 1); break;	// File B delete
 		case 0xb7:	// File B append (closes file handle B if open)

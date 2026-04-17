@@ -3,7 +3,7 @@
 void SDCardHandler::begin()
 {
     SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
-    SD.begin(SD_SPI_CS_PIN, SPI);
+    okay = SD.begin(SD_SPI_CS_PIN, SPI);
 }
 
 File SDCardHandler::open(const char *path, const char *mode)

@@ -432,10 +432,26 @@ void Terminal::_escape_sequence_cwrite(const char c)
     switch(_escape_state)
     {
         case EscapeState::ESCAPE:
+
             if(c == '[')    // It's bracket time
                 _escape_state = EscapeState::BRACKET;
-            else    // Unrecognized code, return to normal
+            else if(c == '7')
+            {
                 _escape_state = EscapeState::NORMAL;
+                _cursor_row_mem = _cursor_row;
+                _cursor_col_mem = _cursor_col;
+            }
+            else if(c == '8')
+            {
+                _escape_state = EscapeState::NORMAL;
+                _cursor_row = _cursor_row_mem;
+                _cursor_col = _cursor_col_mem;
+            }
+            else
+            {
+                // Unrecognized code, return to normal
+                _escape_state = EscapeState::NORMAL;
+            }
             break;
         case EscapeState::BRACKET:
         case EscapeState::PARAMS:

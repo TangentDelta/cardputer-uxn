@@ -1,42 +1,7 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <sd_card_handler.h>
 #pragma once
-
-enum ConsoleType
-{
-    type_no_queue,
-    type_stdin,
-    type_argument,
-    type_argument_spacer,
-    type_argument_end
-};
-
-enum class FileHandleState
-{
-    closed,
-    open_read,
-    open_write
-};
-
-enum FileDevicePorts
-{
-    VECTOR_HI,
-    VECTOR_LO,
-    SUCCESS_HI,
-    SUCCESS_LO,
-    STAT_HI,
-    STAT_LO,
-    DELETE,
-    APPEND,
-    NAME_HI,
-    NAME_LO,
-    LENGTH_HI,
-    LENGTH_LO,
-    READ_HI,
-    READ_LO,
-    WRITE_HI,
-    WRITE_LO
-};
 
 // Callback
 using UxnDeviceCallback = std::function<void(uint8_t)>;
@@ -44,9 +9,19 @@ using UxnDeviceCallback = std::function<void(uint8_t)>;
 class Uxn
 {
 public:
+    enum ConsoleType
+    {
+        type_no_queue,
+        type_stdin,
+        type_argument,
+        type_argument_spacer,
+        type_argument_end
+    };
+
     Uxn(uint8_t memory_size=8, uint8_t stack_size=4);
     ~Uxn();
     bool begin();
+    void update();
     unsigned int eval(uint16_t pc);
     void load(const uint8_t *rom, int count);
     void set_deo_callback(uint8_t port, UxnDeviceCallback port_callback);
@@ -64,11 +39,81 @@ public:
     void console_vector(uint8_t value, ConsoleType value_type = ConsoleType::type_stdin);
     void console_stdin(uint8_t value){ console_vector(value); };
 
+    /* Socket Device */
+    bool wifi_connected = false;
+
     /* File Device */
     SDCardHandler sd_card_handler;
 
     bool alive = false; // The Uxn instance defaults to being dead. Setting a vector sets this to true.
-protected:
+private:
+    enum class FileHandleState
+    {
+        closed,
+        open_read,
+        open_write
+    };
+    enum FileDevicePorts
+    {
+        VECTOR_HI,
+        VECTOR_LO,
+        SUCCESS_HI,
+        SUCCESS_LO,
+        STAT_HI,
+        STAT_LO,
+        DELETE,
+        APPEND,
+        NAME_HI,
+        NAME_LO,
+        LENGTH_HI,
+        LENGTH_LO,
+        READ_HI,
+        READ_LO,
+        WRITE_HI,
+        WRITE_LO
+    };
+
+    enum DevicePorts
+    {
+        DEVICE_SYSTEM_WST = 0x04,
+        DEVICE_SYSTEM_RST = 0x05,
+        DEVICE_SYSTEM_METADATA_HI = 0x06,
+        DEVICE_SYSTEM_MDETADATA_LO = 0x07,
+        DEVICE_SYSTEM_STATE = 0x0f,
+
+        DEVICE_CONSOLE_VECTOR_HI = 0x10,
+        DEVICE_CONSOLE_VECTOR_LO = 0x11,
+        DEVICE_CONSOLE_READ = 0x12,
+        DEVICE_CONSOLE_STTY = 0x16,
+        DEVICE_CONSOLE_TYPE = 0x17,
+        DEVICE_CONSOLE_WRITE = 0x18,
+        DEVICE_CONSOLE_ERROR = 0x19,
+
+        DEVICE_SOCKET_VECTOR_HI = 0x70,
+        DEVICE_SOCKET_VECTOR_LO = 0x71,
+        DEVICE_SOCKET_SUCCESS_HI = 0x72,
+        DEVICE_SOCKET_SUCCESS_LO = 0x73,
+        DEVICE_SOCKET_STATUS = 0x74,
+        DEVICE_SOCKET_COMMAND_HI = 0x78,
+        DEVICE_SOCKET_COMMAND_LO = 0x79,
+        DEVICE_SOCKET_LENGTH_HI = 0x7a,
+        DEVICE_SOCKET_LENGTH_LO = 0x7b,
+        DEVICE_SOCKET_READ_HI = 0x7c,
+        DEVICE_SOCKET_READ_LO = 0x7d,
+        DEVICE_SOCKET_WRITE_HI = 0x7e,
+        DEVICE_SOCKET_WRITE_LO = 0x7f
+    };
+
+    enum SocketStatus
+    {
+        SOCK_STAT_SUCCESS = 0x00,
+        SOCK_STAT_DISCONNECTED = 0x01,
+        SOCK_STAT_ERR_NETWORK = 0x80,   // Error with the network configuration
+        SOCK_STAT_ERR_CONN = 0x81,     // Error connecting to the host
+        SOCK_STAT_ERR_PARSE = 0x82,    // Error parsing the command
+        SOCK_STAT_ERR_WRITE = 0x83,    // Error writing to the socket
+    };
+
     /* Core */
     // Core sizing
     unsigned int _ram_size;
@@ -102,4 +147,11 @@ protected:
     void _file_stat(uint8_t *device, uint8_t file_index);
     void _file_delete(uint8_t *device, uint8_t file_index);
     void _file_dir_content(uint8_t *device, uint8_t file_index);
+
+    /* Socket Device */
+    NetworkClient *_socket_nc = nullptr;
+    void _socket_close();
+    void _socket_connect();
+    void _socket_read();
+    void _socket_write();
 };
