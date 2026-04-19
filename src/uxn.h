@@ -49,9 +49,10 @@ public:
 private:
     enum class FileHandleState
     {
-        closed,
-        open_read,
-        open_write
+        CLOSED,
+        OPEN_READ,
+        OPEN_WRITE,
+        SOCKET_TCP
     };
     enum FileDevicePorts
     {
@@ -88,30 +89,6 @@ private:
         DEVICE_CONSOLE_TYPE = 0x17,
         DEVICE_CONSOLE_WRITE = 0x18,
         DEVICE_CONSOLE_ERROR = 0x19,
-
-        DEVICE_SOCKET_VECTOR_HI = 0x70,
-        DEVICE_SOCKET_VECTOR_LO = 0x71,
-        DEVICE_SOCKET_SUCCESS_HI = 0x72,
-        DEVICE_SOCKET_SUCCESS_LO = 0x73,
-        DEVICE_SOCKET_STATUS = 0x74,
-        DEVICE_SOCKET_COMMAND_HI = 0x78,
-        DEVICE_SOCKET_COMMAND_LO = 0x79,
-        DEVICE_SOCKET_LENGTH_HI = 0x7a,
-        DEVICE_SOCKET_LENGTH_LO = 0x7b,
-        DEVICE_SOCKET_READ_HI = 0x7c,
-        DEVICE_SOCKET_READ_LO = 0x7d,
-        DEVICE_SOCKET_WRITE_HI = 0x7e,
-        DEVICE_SOCKET_WRITE_LO = 0x7f
-    };
-
-    enum SocketStatus
-    {
-        SOCK_STAT_SUCCESS = 0x00,
-        SOCK_STAT_DISCONNECTED = 0x01,
-        SOCK_STAT_ERR_NETWORK = 0x80,   // Error with the network configuration
-        SOCK_STAT_ERR_CONN = 0x81,     // Error connecting to the host
-        SOCK_STAT_ERR_PARSE = 0x82,    // Error parsing the command
-        SOCK_STAT_ERR_WRITE = 0x83,    // Error writing to the socket
     };
 
     /* Core */
@@ -138,20 +115,19 @@ private:
     /* File Device */
     uint16_t _file_ptr;
     File _file_handle[2];
-    FileHandleState _file_handle_state[2] = {FileHandleState::closed};
+    NetworkClient *_file_socket[2] = {nullptr};
+    FileHandleState _file_handle_state[2] = {FileHandleState::CLOSED};
     char _working_file_stat[64] = {0};    // Used to hold the file stat line in case it gets cut off in the middle
     const char *_get_filename(uint8_t *device);    // Get the filename from File/name*
     void _file_close(uint8_t file_index);
+    void _file_name(uint8_t *device, uint8_t file_index);
     void _file_read(uint8_t *device, uint8_t file_index);
     void _file_write(uint8_t *device, uint8_t file_index);
     void _file_stat(uint8_t *device, uint8_t file_index);
     void _file_delete(uint8_t *device, uint8_t file_index);
     void _file_dir_content(uint8_t *device, uint8_t file_index);
-
-    /* Socket Device */
-    NetworkClient *_socket_nc = nullptr;
-    void _socket_close();
-    void _socket_connect();
-    void _socket_read();
-    void _socket_write();
+    // Socket methods
+    void _file_socket_connect(uint8_t *device, uint8_t file_index, const char *authority);
+    void _file_socket_read(uint8_t *device, uint8_t file_index);
+    void _file_socket_write(uint8_t *device, uint8_t file_index);
 };

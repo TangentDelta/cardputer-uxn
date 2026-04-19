@@ -16,9 +16,12 @@ Uxn::~Uxn()
 	if(_file_handle[1])
 		_file_handle[1].close();
 
-	// Close the socket
-	_socket_close();
-	
+	// Close the sockets
+	if(_file_socket[0] != nullptr)
+		_file_socket[0]->stop();
+	if(_file_socket[1] != nullptr)
+		_file_socket[1]->stop();
+
 	// Free up the heap memory that we allocated
 	free(_ram);
 	free(_stk[0]);
@@ -48,12 +51,15 @@ bool Uxn::begin()
 
 void Uxn::update()
 {
-	if(_socket_nc != nullptr)
+	for(uint8_t i=0; i < 2; i++)
 	{
-		uint16_t socket_vector = (_devices[DEVICE_SOCKET_VECTOR_HI] << 8) | _devices[DEVICE_SOCKET_VECTOR_LO];
-		if(socket_vector!=0)
+		if(_file_socket[i] != nullptr)
 		{
-			if(_socket_nc->available() > 0) eval(socket_vector);
+			uint16_t socket_vector = (_devices[0xa0+(i<<4)] << 8) | _devices[0xa1+(i<<4)];
+			if(socket_vector!=0)
+			{
+				if(_file_socket[i]->available() > 0) eval(socket_vector);
+			}
 		}
 	}
 }
@@ -204,13 +210,51 @@ const char *Uxn::_get_filename(uint8_t *device)
 // Close the file handle given the index
 void Uxn::_file_close(uint8_t file_index)
 {
-	_file_handle[file_index].close();
-	_file_handle_state[file_index] = FileHandleState::closed;
+	// Close the socket associated with this file index
+	if(_file_socket[file_index] != nullptr)
+	{
+		_file_socket[file_index]->stop();
+		_file_socket[file_index] = nullptr;
+	}
+
+	// Close the file handle associated with this file index
+	if(_file_handle[file_index])
+	{
+		_file_handle[file_index].close();
+	}
+	
+	_file_handle_state[file_index] = FileHandleState::CLOSED;
+}
+
+// Check if the file name is a special file handle
+void Uxn::_file_name(uint8_t *device, uint8_t file_index)
+{
+	// Close the file handle if it is currently open
+	if(_file_handle_state[file_index] != FileHandleState::CLOSED) _file_close(file_index);
+
+	const char *file_name = _get_filename(device);
+	if(strlen(file_name) < 7) return;	// Filename is too short for a URI, return
+	if(strncmp(file_name+3, "://", 3) == 0)
+	{
+		if(strncmp(file_name, "tcp", 3) == 0)
+		{
+			// tcp://hostname:port
+			// Try to open the socket, passing in the authority (host and port) from the filename
+			_file_socket_connect(device, file_index, file_name+6);
+		}
+	}
 }
 
 // Attempt to read a file from the filesystem
 void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 {
+	// Read from the TCP socket if it's open
+	if(_file_handle_state[file_index] == FileHandleState::SOCKET_TCP)
+	{
+		_file_socket_read(device, file_index);
+		return;
+	}
+
 	File& file_handle = _file_handle[file_index];
 
 	// If this file handle hasn't been set up yet, try opening the file for reading
@@ -226,7 +270,7 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 		return;
 	}
 
-	_file_handle_state[file_index] = FileHandleState::open_read;
+	_file_handle_state[file_index] = FileHandleState::OPEN_READ;
 
 	// Is this actually a directory?
 	if(file_handle.isDirectory())
@@ -270,10 +314,17 @@ void Uxn::_file_read(uint8_t *device, uint8_t file_index)
 
 void Uxn::_file_write(uint8_t *device, uint8_t file_index)
 {
+	// Write to the TCP socket if it's open
+	if(_file_handle_state[file_index] == FileHandleState::SOCKET_TCP)
+	{
+		_file_socket_write(device, file_index);
+		return;
+	}
+
 	File& file_handle = _file_handle[file_index];
 
 	// If the file handle was previously open for reading, close it
-	if(_file_handle_state[file_index] == FileHandleState::open_read)
+	if(_file_handle_state[file_index] == FileHandleState::OPEN_READ)
 		file_handle.close();
 
 	// Initialize bytes written at 0
@@ -394,105 +445,92 @@ void Uxn::_file_dir_content(uint8_t *device, uint8_t file_index)
 	}
 }
 
-/* Socket Device */
-void Uxn::_socket_close()
-{
-	if(_socket_nc == nullptr) return;
-	_socket_nc->stop();
-	delete _socket_nc;
-	_socket_nc = nullptr;
-}
+/* File socket methods */
 
-void Uxn::_socket_connect()
+// Attempt the creation of a socket
+void Uxn::_file_socket_connect(uint8_t *device, uint8_t file_index, const char *authority)
 {
-	_socket_close();	// Close out of an existing socket
+	// Preload the success ports with 0 (failure)
+	device[FileDevicePorts::SUCCESS_HI] = 0;
+	device[FileDevicePorts::SUCCESS_LO] = 0;
 
 	// Make sure the wifi is connected
-	if(!wifi_connected)
-	{
-		_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_NETWORK;
-		return;
-	}
-
-	uint16_t command_addr = (_devices[DEVICE_SOCKET_COMMAND_HI] << 8) | _devices[DEVICE_SOCKET_COMMAND_LO];
-	const char *command = (char*)(_ram+command_addr);
-
-	// Preload the status port with the unsuccessful value
-	_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_PARSE;	// Error parsing connect command
-
-	// Check what protocol to use
-	bool mode_tcp = (strncmp(command, "TCP", 3) == 0);
+	if(!wifi_connected) return;
 
 	char host[64];
 
 	// Identify the port to connect to
 	uint16_t port = 0;
-	const char *port_start = command;
+	const char *port_start = authority;
 	while((*port_start != '\0') && (*port_start != ':')) port_start++;
 	if(*port_start == ':') port = atoi(port_start+1);
 
-	// Return if the port wasn't found or this isn't TCP mode
-	if((port == 0) || !mode_tcp) return;
+	// Return if the port wasn't found
+	if(port == 0) return;
 
-	uint8_t hostname_length = (port_start-command)-4;
+	uint8_t hostname_length = (port_start-authority);
 
 	// Return if the hostname is too long
 	if(hostname_length>63) return;
 
-	memcpy(host, command+4, hostname_length);	// Copy the host to connect to into the buffer
-	host[hostname_length] = 0;
-	/*
-	Command structure
-	TCP 192.168.0.5:80
-	TCP foo.bar:73
-	*/
-	_socket_nc = new NetworkClient;
-	if(!_socket_nc->connect(host, port))
+	memcpy(host, authority, hostname_length);	// Copy the host to connect to into the buffer
+	host[hostname_length] = 0;	// Null-termination
+
+	// Create the socket and attempt a connection to the host
+	_file_socket[file_index] = new NetworkClient;
+	if(!_file_socket[file_index]->connect(host, port))
 	{
-		_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_ERR_CONN;	// Error connecting to host
-		_socket_close();
+		_file_socket[file_index]->stop();
+		_file_socket[file_index]=nullptr;
 		return;
 	}
 
-	_devices[DEVICE_SOCKET_STATUS] = SOCK_STAT_SUCCESS;	// Success
+	_file_handle_state[file_index] = FileHandleState::SOCKET_TCP;
+	device[FileDevicePorts::SUCCESS_LO] = 1;	// Set LSB to 1 to indicate a successful connection
 }
 
-void Uxn::_socket_read()
+// Read from the socket into the file device
+void Uxn::_file_socket_read(uint8_t *device, uint8_t file_index)
 {
-	_devices[DEVICE_SOCKET_SUCCESS_HI] = 0;
-	_devices[DEVICE_SOCKET_SUCCESS_LO] = 0;
+	device[FileDevicePorts::SUCCESS_HI] = 0;
+	device[FileDevicePorts::SUCCESS_LO] = 0;
 
-	uint16_t buffer_length = (_devices[DEVICE_SOCKET_LENGTH_HI] << 8) | _devices[DEVICE_SOCKET_READ_LO];
-	uint16_t dest_addr = (_devices[DEVICE_SOCKET_READ_HI] << 8) | _devices[DEVICE_SOCKET_READ_LO];
+	uint16_t buffer_length = (device[FileDevicePorts::LENGTH_HI] << 8) | device[FileDevicePorts::LENGTH_LO];
+	uint16_t dest_addr = (device[FileDevicePorts::READ_HI] << 8) | device[FileDevicePorts::READ_LO];
 	if((dest_addr+buffer_length) > _ram_size) return;	// Buffer extends past the available memory!
-	uint16_t bytes_written = min(_socket_nc->available(), (int)buffer_length);
+
+	NetworkClient *nc = _file_socket[file_index];
+	uint16_t bytes_written = min(nc->available(), (int)buffer_length);
 
 	// Read into the buffer
-	_socket_nc->readBytes(_ram+dest_addr, buffer_length);
+	nc->readBytes(_ram+dest_addr, buffer_length);
 
 	// Report how many bytes were read
-	_devices[DEVICE_SOCKET_SUCCESS_HI] = bytes_written >> 8;
-	_devices[DEVICE_SOCKET_SUCCESS_LO] = bytes_written & 0xff;
+	device[FileDevicePorts::SUCCESS_HI] = bytes_written >> 8;
+	device[FileDevicePorts::SUCCESS_LO] = bytes_written & 0xff;
 }
 
-void Uxn::_socket_write()
+// Write from the file device into its socket
+void Uxn::_file_socket_write(uint8_t *device, uint8_t file_index)
 {
-	_devices[DEVICE_SOCKET_SUCCESS_HI] = 0;
-	_devices[DEVICE_SOCKET_SUCCESS_LO] = 0;
+	device[FileDevicePorts::SUCCESS_HI] = 0;
+	device[FileDevicePorts::SUCCESS_LO] = 0;
 
-	if(_socket_nc == nullptr) return;	// Since the Uxn core can call this, we need to make sure the socket is valid before we use it!
+	// Since the Uxn core can call this, we need to make sure the socket is valid before we use it!
+	// TODO: Should probably verify the socket connectivity state here too
+	if(_file_handle_state[file_index] != FileHandleState::SOCKET_TCP) return;	
 
-	uint16_t buffer_length = (_devices[DEVICE_SOCKET_LENGTH_HI] << 8) | _devices[DEVICE_SOCKET_LENGTH_LO];
-	uint16_t source_addr = (_devices[DEVICE_SOCKET_WRITE_HI] << 8) | _devices[DEVICE_SOCKET_WRITE_LO];
+	uint16_t buffer_length = (device[FileDevicePorts::LENGTH_HI] << 8) | device[FileDevicePorts::LENGTH_LO];
+	uint16_t source_addr = (device[FileDevicePorts::WRITE_HI] << 8) | device[FileDevicePorts::WRITE_LO];
 	if((source_addr+buffer_length) > _ram_size) return;	// Buffer extends past the available memory!
-	if(!_socket_nc->write(_ram+source_addr, buffer_length))
-	{
-		// Some sort of error happened while writing to the socket
-		_devices[SOCK_STAT_ERR_WRITE] = 3;
-		return;
-	}
-	_devices[DEVICE_SOCKET_SUCCESS_HI] = buffer_length >> 8;
-	_devices[DEVICE_SOCKET_SUCCESS_LO] = buffer_length & 0xff;
+
+	NetworkClient *nc = _file_socket[file_index];
+
+	if(!nc->write(_ram+source_addr, buffer_length)) return;
+
+	// Report how many bytes were written
+	device[FileDevicePorts::SUCCESS_HI] = buffer_length >> 8;
+	device[FileDevicePorts::SUCCESS_LO] = buffer_length & 0xff;
 }
 
 uint8_t Uxn::_dei(const uint8_t port)
@@ -529,24 +567,20 @@ void Uxn::_deo(const uint8_t port, const uint8_t value)
 		case DEVICE_CONSOLE_ERROR:	// Console - Error
 			if(_console_error) _console_error(value); return;
 
-		/* Socket */
-		case DEVICE_SOCKET_COMMAND_LO: _socket_connect(); break;
-		case DEVICE_SOCKET_WRITE_LO: _socket_write(); break;
-
 		/* File A */
 		case 0xa5: _file_stat(_devices+0xa0, 0); break;	// File A stat
 		case 0xa6: _file_delete(_devices+0xa0, 0); break;	// File A delete
-		case 0xa7:	// File A append (closes file handle A if open)
-		case 0xa9: if(_file_handle[0]) _file_close(0); break; // File A name (closes file handle A if open)
+		case 0xa7: if(_file_handle[0]) _file_close(0); break;// File A append (closes file handle A if open)
+		case 0xa9: _file_name(_devices+0xa0, 0); break; // File A name
 		case 0xad: _file_read(_devices+0xa0, 0); break;	// File A read
 		case 0xaf: _file_write(_devices+0xa0, 0); break;	// File A write
 
 		/* File B */
 		case 0xb5: _file_stat(_devices+0xb0, 0); break;	// File B stat
 		case 0xb6: _file_delete(_devices+0xb0, 1); break;	// File B delete
-		case 0xb7:	// File B append (closes file handle B if open)
-		case 0xb9: if(_file_handle[1]) _file_close(1); break; // File B name (closes file handle B if open)
-		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File A read
+		case 0xb7: if(_file_handle[1]) _file_close(1); break;// File B append (closes file handle B if open)
+		case 0xb9: _file_name(_devices+0xb0, 1); break; // File B name
+		case 0xbd: _file_read(_devices+0xb0, 1); break;	// File B read
 		case 0xbf: _file_write(_devices+0xb0, 1); break;	// File B write
         default:
             break;

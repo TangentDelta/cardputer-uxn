@@ -33,61 +33,24 @@ password=SuperSecretWiFiPassword
 
 ## WiFi!
 
-New! Barely tested! Cucumber now has WiFi support, with a shiny new Uxn device to use it. Once you have your SSID and password configured in [settings.ini](#settings) (and rebooted the Cardputer), you can use the `Socket` device to establish a connection to a remote TCP socket.
+New! Barely tested! Cucumber now has WiFi support, with an augment of the File devices to use it. Once you have your SSID and password configured in [settings.ini](#settings) (and rebooted the Cardputer), you can use a filename with a special "URI" to establish a TCP socket to a remote host.
 
 ```
-        _______________    _______________
-socket | 70 | vector*  |  | 78 | command* |
-       |____|          |  |    |          |
-       | 71 |          |  | 79 |          |
-       |____|__________|  |____|__________|
-       | 72 | success* |  | 7a |  length* |
-       |____|          |  |    |          |
-       | 73 |          |  | 7b |          |
-       |____|__________|  |____|__________|
-       | 74 |  status  |  | 7c |  read*   |
-       |____|__________|  |    |          |
-       | 75 |          |  | 7d |          |
-       |____|__________|  |____|__________|
-       | 76 |          |  | 7e |  write*  |
-       |____|__________|  |    |          |
-       | 77 |          |  | 7f |          |
-       |____|__________|  |____|__________|
+@on-reset ( -> )
+  ;your-uri .File1/name DEO2  ( Attempt a connection )
+	.File1/success DEI2 ORA ?{ BRK }  ( Quit if the connection was not successful )
+  ( Send a test string )
+	#0015 .File1/length DEO2
+	;test-string .File1/write DEO2
+	BRK
+
+@your-uri "tcp://192.168.1.100:9000 $1
+@test-string "Hello 20 "from 20 "Cucumber! $1
 ```
 
-### Socket/command
+The moment the filename address is written to File/name a connection to the specified authority is attempted. If the connection attempt is successful File/success is loaded with the value #0001. If the connection is unsucessful, or the implementation doesn't support this feature, #0000 is loaded instead. 
 
-The `Socket` device behaves nearly identically to the `File` device. Instead of using a null-terminated filename, it instead uses a null-terminated "command" string. Construct the command string in memory and write its address into the `Socket/command` port. The command string must start with the protocol to connect with (right now "TCP" is the only option), followed by a space, then the host to connect to (either an IP or a resolvable DNS name), a colon, and the port of the socket to connect to. Here are a couple examples:
-```
-TCP 192.168.0.115:80
-TCP test.foo-bar.org:23
-```
-### Socket/status
-
-The `Socket/status` contains the status of the socket connection.
-
-|Value|Description|
-|-----|-----------|
-|`00`|Success/okay|
-|`01`|Disconnected|
-|`80`|Network configuration error|
-|`81`|Error connecting to the socket|
-|`82`|Error parsing the command|
-|`83`|Error writing to the socket|
-
-During the `reset` vector the port can be sampled to get the state of the host's network connection. A value of `01` indicates everything is ready to go. `80` indicates a network failure of some kind. `00` would indicate the host doesn't implement the `Socket` device.
-
-### Socket/vector
-
-When data is received over the open socket, `Socket/vector` is evaluated. Whatever data was reveived over the socket can be read out to a buffer using the `Socket/read` port.
-
-### Socket/read
-
-With the size of the buffer to read into written to `Socket/length`, writing the address of the buffer to `Socket/read` will try to read as many bytes as possible from the TCP buffer. The number of bytes successfully transfered is then presented via the `Socket/success` port.
-
-### Socket/write
-
-With the size of the buffer to send data from written to `Socket/length`, writing the address of the buffer to `Socket/write` will try to send as many bytes as possible over the TCP socket. The number of bytes successfully transfered is then presented via the `Socket/success` port.
+When data is sent from the remote to the client over the open socket the File/vector is called. The handler for this vector can read the received data out using the standard File/read procedure.
 
 ## Status Indicator
 
