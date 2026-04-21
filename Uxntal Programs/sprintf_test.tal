@@ -3,12 +3,11 @@
 |a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
 
 |0000
-@ptr $2
 @radix $1
 
 |100
 @on-reset ( -> )
-    #ffff #ffff ;test1 ;test-string ;buffer sprintf
+    #f8ff #ffff ;test1 ;test-string ;buffer sprintf
     ;buffer str/<print>
     BRK
 
@@ -18,7 +17,7 @@
 	INC2 !/<print>
 
 @sprintf ( ... fstr* str* -- )
-    .ptr STZ2 ( ptr holds a pointer to the target buffer )
+    ;/ptr STA2 ( ptr holds a pointer to the target buffer )
     &loop ( fstr* )
         LDAk ?{ POP2 #00 !/put-char } ( end of format string )
         ( understore for easier string composition )
@@ -40,23 +39,21 @@
             LDAk [ LIT "a ] NEQ ?{ #07 !/emit }
             LDAk [ LIT "b ] NEQ ?{ #08 !/emit }
             LDAk [ LIT "e ] NEQ ?{ #1b !/emit }
-            LDAk [ LIT "f ] NEQ ?{ #0c !/emit }
             LDAk [ LIT "n ] NEQ ?{ #0a !/emit }
             LDAk [ LIT "r ] NEQ ?{ #0d !/emit }
             LDAk [ LIT "t ] NEQ ?{ #09 !/emit }
-            LDAk [ LIT "v ] NEQ ?{ #0b !/emit }
             LDAk [ LIT "\ ] NEQ ?{ LIT "\ !/emit }
-            LDAk [ LIT "' ] NEQ ?{ LIT "' !/emit }
+            LDAk [ LIT "% ] NEQ ?{ LIT "% !/emit }
             LDAk [ LIT "" ] NEQ ?{ LIT "" !/emit }
-            LDAk [ LIT "? ] NEQ ?{ LIT "? !/emit }
             LDAk [ LIT "_ ] NEQ ?{ LIT "_ !/emit }
             ( handle octal and hex... )
+            !/prev
         }
 
         ( nothing special, so add it on )
         LDAk !/emit
 
-        &prev #0001 SUB2
+        &prev #0001 SUB2 ( move back and put the previous character )
         LDAk
         &emit /put-char
         &next INC2 !/loop
@@ -66,9 +63,8 @@
     &spec-str ( ... str* fstr* -- ... fstr* )
         SWP2
         &spec-str-loop ( ... fstr* str* )
-        LDAk ?{ POP2 JMP2r }
-        LDAk .ptr LDZ2 STA
-        .ptr LDZk2 INC2 ROT STZ2
+        LDAk DUP ?{ POP POP2 JMP2r }
+        /put-char
         INC2 !/spec-str-loop
 
     &spec-char ( ... char fstr* -- ... fstr* )
@@ -92,11 +88,9 @@
     &put-number-signed ( n* r -- )
         .radix STZ
         ( First check the sign )
-        ( this does not work )
-        DUP2 #0000 LTH2 #01 SUB ?{ 
-            LIT "- /put-char ( Put the '-' )
-            #ffff EOR2 INC2 ( Convert to the positive value )
-        }
+        OVR #80 AND ?{ /put-number-start }
+        LIT "- /put-char ( Put the '-' )
+        #ffff EOR2 INC2 ( Convert to the positive value )
         !/put-number-start
 
     &put-number ( n* r -- )
@@ -117,9 +111,8 @@
         ( >> )
 
     &put-char ( c -- )
-        .ptr LDZ2 STA
-        .ptr DUP LDZ2 INC2 ROT STZ2
-        JMP2r
+        [ LIT2 &ptr 0000 ] INC2k ,&ptr STR2
+        STA JMP2r
 
     &mod-div ( x* y* -- x%y* x/y* )
         DIV2k ( x y q )
@@ -132,5 +125,5 @@
 
 
 @test1 "FooBar 20 "String $1
-@test-string "Test:_%s_%u_%d\n $1
+@test-string "Test:_%s_%u_%d%_\\\n $1
 @buffer $20
