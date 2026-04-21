@@ -1,0 +1,136 @@
+|00 @System/vector $2 &expansion $2 &wst $1 &rst $1 &metadata $2 &r $2 &g $2 &b $2 &debug $1 &state $1
+|10 @Console &vector $2 &read $4 &stty $1 &type $1 &write $1 &error $1
+|a0 @File1/vector $2 &success $2 &stat $2 &delete $1 &append $1 &name $2 &length $2 &read $2 &write $2
+
+|0000
+@ptr $2
+@radix $1
+
+|100
+@on-reset ( -> )
+    #ffff #ffff ;test1 ;test-string ;buffer sprintf
+    ;buffer str/<print>
+    BRK
+
+@str/<print> ( str* -- )
+	LDAk DUP ?{ POP POP2 JMP2r }
+	.Console/write DEO
+	INC2 !/<print>
+
+@sprintf ( ... fstr* str* -- )
+    .ptr STZ2 ( ptr holds a pointer to the target buffer )
+    &loop ( fstr* )
+        LDAk ?{ POP2 #00 !/put-char } ( end of format string )
+        ( understore for easier string composition )
+        LDAk [ LIT "_ ] NEQ ?{ #20 !/emit }
+        ( specifiers )
+        LDAk [ LIT "% ] NEQ ?{
+            INC2
+            LDAk [ LIT "s ] NEQ ?{ /spec-str !/next }
+            LDAk [ LIT "c ] NEQ ?{ /spec-char !/next }
+            LDAk [ LIT "d ] NEQ ?{ /spec-signed-dec !/next }
+            LDAk [ LIT "u ] NEQ ?{ /spec-unsigned-dec !/next }
+            LDAk [ LIT "x ] NEQ ?{ /spec-unsigned-hex !/next }
+            !/prev
+        }
+        ( escaped characters )
+        LDAk [ LIT "\ ] NEQ ?{
+            INC2
+            LDAk [ LIT "0 ] NEQ ?{ #00 !/emit }
+            LDAk [ LIT "a ] NEQ ?{ #07 !/emit }
+            LDAk [ LIT "b ] NEQ ?{ #08 !/emit }
+            LDAk [ LIT "e ] NEQ ?{ #1b !/emit }
+            LDAk [ LIT "f ] NEQ ?{ #0c !/emit }
+            LDAk [ LIT "n ] NEQ ?{ #0a !/emit }
+            LDAk [ LIT "r ] NEQ ?{ #0d !/emit }
+            LDAk [ LIT "t ] NEQ ?{ #09 !/emit }
+            LDAk [ LIT "v ] NEQ ?{ #0b !/emit }
+            LDAk [ LIT "\ ] NEQ ?{ LIT "\ !/emit }
+            LDAk [ LIT "' ] NEQ ?{ LIT "' !/emit }
+            LDAk [ LIT "" ] NEQ ?{ LIT "" !/emit }
+            LDAk [ LIT "? ] NEQ ?{ LIT "? !/emit }
+            LDAk [ LIT "_ ] NEQ ?{ LIT "_ !/emit }
+            ( handle octal and hex... )
+        }
+
+        ( nothing special, so add it on )
+        LDAk !/emit
+
+        &prev #0001 SUB2
+        LDAk
+        &emit /put-char
+        &next INC2 !/loop
+
+    ( Specifier handlers )
+
+    &spec-str ( ... str* fstr* -- ... fstr* )
+        SWP2
+        &spec-str-loop ( ... fstr* str* )
+        LDAk ?{ POP2 JMP2r }
+        LDAk .ptr LDZ2 STA
+        .ptr LDZk2 INC2 ROT STZ2
+        INC2 !/spec-str-loop
+
+    &spec-char ( ... char fstr* -- ... fstr* )
+        SWP2 !/put-char
+        
+    &spec-signed-dec ( ... int* fstr* -- ... fstr* )
+        SWP2
+        #0a !/put-number-signed
+
+    &spec-unsigned-dec ( ... int* fstr* -- ... fstr* )
+        SWP2
+        #0a !/put-number
+
+    &spec-unsigned-hex ( ... int* fstr* -- ... fstr* )
+        SWP2
+        #10 !/put-number
+        
+
+    ( Helper methods )
+
+    &put-number-signed ( n* r -- )
+        .radix STZ
+        ( First check the sign )
+        ( this does not work )
+        DUP2 #0000 LTH2 #01 SUB ?{ 
+            LIT "- /put-char ( Put the '-' )
+            #ffff EOR2 INC2 ( Convert to the positive value )
+        }
+        !/put-number-start
+
+    &put-number ( n* r -- )
+        .radix STZ
+        &put-number-start
+        #ffff SWP2 ( guard for later )
+        &put-number-build-digits
+            #00 .radix LDZ /mod-div  ( r* q* )
+            DUP2 #0000 EQU2 ?{ !/put-number-build-digits }
+        POP2 ( drop the 0 )
+        &put-number-write-digits
+            NIP /put-digit DUP2 #ffff EQU2 ?{ !/put-number-write-digits }
+        POP2 JMP2r
+
+    &put-digit ( n -- )
+        #30 ADD
+        DUP #3a LTH ?{ #27 ADD }
+        ( >> )
+
+    &put-char ( c -- )
+        .ptr LDZ2 STA
+        .ptr DUP LDZ2 INC2 ROT STZ2
+        JMP2r
+
+    &mod-div ( x* y* -- x%y* x/y* )
+        DIV2k ( x y q )
+        STH2k ( stash the quotient for later )
+        MUL2 SUB2 ( compute the remainder )
+        STH2r ( unstash the quotient )
+        JMP2r
+
+
+
+
+@test1 "FooBar 20 "String $1
+@test-string "Test:_%s_%u_%d\n $1
+@buffer $20
