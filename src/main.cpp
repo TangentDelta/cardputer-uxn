@@ -679,11 +679,28 @@ void load_settings()
         return;
     }
 
-    TinyINI<2,4,32> ini;
+    TinyINI<4,32,32> ini;
 
     uint8_t section_wifi = ini.register_section("wifi");
     ini.register_key(section_wifi, "ssid", [](const char *s){ wifi_handler.set_ssid(s); });
     ini.register_key(section_wifi, "password", [](const char *s){ wifi_handler.set_password(s); });
+    uint8_t section_term_color = ini.register_section("terminal-theme");
+    ini.register_key(section_term_color, "black", [](const char *s){ terminal.set_palette(0, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "red", [](const char *s){ terminal.set_palette(1, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "green", [](const char *s){ terminal.set_palette(2, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "yellow", [](const char *s){ terminal.set_palette(3, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "blue", [](const char *s){ terminal.set_palette(4, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "magenta", [](const char *s){ terminal.set_palette(5, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "cyan", [](const char *s){ terminal.set_palette(6, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "white", [](const char *s){ terminal.set_palette(7, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_black", [](const char *s){ terminal.set_palette(8, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_red", [](const char *s){ terminal.set_palette(9, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_green", [](const char *s){ terminal.set_palette(10, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_yellow", [](const char *s){ terminal.set_palette(11, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_blue", [](const char *s){ terminal.set_palette(12, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_magenta", [](const char *s){ terminal.set_palette(13, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bolt_cyan", [](const char *s){ terminal.set_palette(14, (uint32_t)strtoul(s, NULL, 16)); });
+    ini.register_key(section_term_color, "bold_white", [](const char *s){ terminal.set_palette(15, (uint32_t)strtoul(s, NULL, 16)); });
 
     while(f.available())
     {

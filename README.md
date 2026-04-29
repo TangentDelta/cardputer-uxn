@@ -94,4 +94,4 @@ The value is a 16-bit word, which can be broken down into 4 4-bit nybbles:
 
 ## Terminal Customization
 
-The terminal's color palette and default colors can be changed in `src/terminal.h`. The `TERM_COLOR_*` defines are used to define the 16 colors in the palette (8 "normal", 8 "bright"). The default foreground and bakcground ANSI color indices can be set a little further down by the `_color_default_fg` and `_color_default_bg` member variables.
+The terminal's color theme can be set in the [settings.ini](#settings) file within the `[terminal-theme]` section. This section contains keys and values for the 8 standard ANSI terminal colors plus the 8 "bold" colors. Take a look at [terminal_themes.md](terminal_themes.md) for some example themes!

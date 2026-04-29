@@ -106,6 +106,8 @@ public:
     void char_fill(uint16_t *start, char c, uint16_t count);
     void clear(const char c = ' ', const uint8_t mode = 2);
     void set_mode(TerminalFlag flag, bool flag_state);
+    void set_palette(uint8_t palette_index, uint16_t color);
+    void set_palette(uint8_t palette_index, uint32_t color);
 
     bool flag_canon = false;
 protected:

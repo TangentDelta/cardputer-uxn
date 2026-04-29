@@ -224,6 +224,29 @@ void Terminal::set_mode(TerminalFlag flag, bool flag_state)
     }
 }
 
+// Set the color of the palette slot
+void Terminal::set_palette(uint8_t palette_index, uint16_t color)
+{
+    if(palette_index > 15) return;
+    _palette[palette_index] = color;
+}
+
+// Overload method that turns a 32-bit color into the expected 16-bit color code
+void Terminal::set_palette(uint8_t palette_index, uint32_t color)
+{
+    // Scrunch the colors down into their 5-6-5 form
+    uint8_t r = (color >> 16) & 0xff;
+    uint8_t g = (color >> 8) & 0xff;
+    uint8_t b = color & 0xff;
+
+    // Scale the components of the color
+    r = ((r*0x1f)+0x7f) / 0xff;
+    g = ((g*0x3f)+0x7f) / 0xff;
+    b = ((b*0x1f)+0x7f) / 0xff;
+
+    set_palette(palette_index, (uint16_t)((r<<11)|(g<<5)|b));
+}
+
 
 /*
 Private Methods
@@ -341,7 +364,7 @@ Private Methods
  // Render the character buffer to the LCD
 void Terminal::_render_terminal()
 {
-    _canvas->fillScreen(TERM_COLOR_BLACK);
+    _canvas->fillScreen(_palette[0]);
     _canvas->setFont(&fonts::Font8x8C64);
     _canvas->setTextSize(1);
 
