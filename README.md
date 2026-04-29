@@ -22,13 +22,33 @@ The shell has no usability on its own and will need some .rom files on an SD car
 
 ## Settings
 
-When Cucumber starts up it attempts to open and read the settings from `/settings.ini` off of the SD card. At the moment the only settings stored in here are for the WiFi.
+When Cucumber starts up it attempts to open and read the settings from `/settings.ini` off of the SD card. At the moment the only settings stored in here are for the WiFi and terminal theme.
 
 Example `settings.ini`:
 ```
 [wifi]
 ssid=my_cool_wifi_network
 password=SuperSecretWiFiPassword
+
+; My super awesome theme
+[terminal-theme]
+black        = 0xFF000000
+red          = 0xFF800000
+green        = 0xFF004100
+yellow       = 0xFF804100
+blue         = 0xFF000084
+magenta      = 0xFF800084
+cyan         = 0xFF004184
+white        = 0xFFC6C3C5
+
+bold_black   = 0xFF844184
+bold_red     = 0xFFFF0000
+bold_green   = 0xFF00FC00
+bold_yellow  = 0xFFFFFC00
+bold_blue    = 0xFF0000FF
+bold_magenta = 0xFFFF00FF
+bold_cyan    = 0xFF00FCFF
+bold_white   = 0xFFFFFFFF
 ```
 
 ## WiFi!
