@@ -160,11 +160,11 @@ void Uxn::set_deo_callback(uint8_t port, UxnDeviceCallback port_callback)
 {
     switch(port)
     {
-		case 0x16:	// Console - stty
+		case DEVICE_CONSOLE_STTY:	// Console - stty
 			_console_stty = port_callback; break;
-        case 0x18:  // Console - Write
+        case DEVICE_CONSOLE_WRITE:  // Console - Write
             _console_write = port_callback; break;
-		case 0x19:	// Console - error
+		case DEVICE_CONSOLE_ERROR:	// Console - error
 			_console_error = port_callback; break;
     }
 }
