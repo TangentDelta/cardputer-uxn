@@ -290,7 +290,6 @@ Uxn *load_rom(const char *rom_name)
     // tell it about the status of the wifi
     bool wifi_okay = wifi_handler.get_status() == 0x03;
     u->wifi_connected = wifi_okay;
-    u->dev_poke(74, wifi_okay ? 0x01 : 0x80);
 
     if(do_raw)
         terminal.set_mode(TerminalFlag::FLAG_CANONICAL, false);
@@ -321,16 +320,16 @@ void wire_uxn_instances()
         {
             Uxn *ua = uxn_instances[i];
             Uxn *ub = uxn_instances[i+1];
-            ua->set_deo_callback(0x18, [ub](uint8_t value){ ub->console_vector(value); });
+            ua->set_deo_callback(Uxn::DevicePorts::DEVICE_CONSOLE_WRITE, [ub](uint8_t value){ ub->console_vector(value); });
         }
     }
 
     // Set up the first instance for setting tty flags
-    uxn_instances[0]->dev_poke(0x16, 0x80);
-    uxn_instances[0]->set_deo_callback(0x16, terminal_uxn_stty);
+    uxn_instances[0]->dev_poke(Uxn::DevicePorts::DEVICE_CONSOLE_STTY, 0x80);
+    uxn_instances[0]->set_deo_callback(Uxn::DevicePorts::DEVICE_CONSOLE_STTY, terminal_uxn_stty);
 
     // Wire up the last instance to the terminal's screen
-    uxn_instances[uxn_instance_index-1]->set_deo_callback(0x18, terminal_cwrite);
+    uxn_instances[uxn_instance_index-1]->set_deo_callback(Uxn::DevicePorts::DEVICE_CONSOLE_WRITE, terminal_cwrite);
 }
 
 // Relases all of the uxn instances
@@ -406,7 +405,7 @@ bool shell_start_instance(const char *shell_word)
         return false;
     }
 
-    new_uxn->set_deo_callback(0x19, terminal_cwrite);   // Set up the Console/error callback
+    new_uxn->set_deo_callback(Uxn::DevicePorts::DEVICE_CONSOLE_ERROR, terminal_cwrite);   // Set up the Console/error callback
     return true;
 }
 
@@ -539,12 +538,12 @@ void shell_process_buffer()
             // If the instance has no arguments, skip this instance
             if(instance_args == nullptr)
             {
-                u->dev_poke(0x17, 0x00);    // Indicate to the VM that there are no arguments (null -> Console/type)
+                u->dev_poke(Uxn::DevicePorts::DEVICE_CONSOLE_TYPE, Uxn::ConsoleType::type_no_queue);    // Indicate to the VM that there are no arguments (null -> Console/type)
                 u->eval(0x100); // Process the reset vector
                 continue;   // Skip sending the args
             }
 
-            u->dev_poke(0x17, 0x01);    // Indicate to the VM that there are args
+            u->dev_poke(Uxn::DevicePorts::DEVICE_CONSOLE_TYPE, 0x01);    // Indicate to the VM that there are args
             u->eval(0x100); // Process the reset vector
 
             // TODO: This should get made into a lexer

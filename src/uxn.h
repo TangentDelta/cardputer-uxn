@@ -18,6 +18,23 @@ public:
         type_argument_end
     };
 
+    enum DevicePorts
+    {
+        DEVICE_SYSTEM_WST = 0x04,
+        DEVICE_SYSTEM_RST = 0x05,
+        DEVICE_SYSTEM_METADATA_HI = 0x06,
+        DEVICE_SYSTEM_MDETADATA_LO = 0x07,
+        DEVICE_SYSTEM_STATE = 0x0f,
+
+        DEVICE_CONSOLE_VECTOR_HI = 0x10,
+        DEVICE_CONSOLE_VECTOR_LO = 0x11,
+        DEVICE_CONSOLE_READ = 0x12,
+        DEVICE_CONSOLE_STTY = 0x14,
+        DEVICE_CONSOLE_TYPE = 0x17,
+        DEVICE_CONSOLE_WRITE = 0x18,
+        DEVICE_CONSOLE_ERROR = 0x19,
+    };
+
     Uxn(uint8_t memory_size=8, uint8_t stack_size=4);
     ~Uxn();
     bool begin();
@@ -72,23 +89,6 @@ private:
         READ_LO,
         WRITE_HI,
         WRITE_LO
-    };
-
-    enum DevicePorts
-    {
-        DEVICE_SYSTEM_WST = 0x04,
-        DEVICE_SYSTEM_RST = 0x05,
-        DEVICE_SYSTEM_METADATA_HI = 0x06,
-        DEVICE_SYSTEM_MDETADATA_LO = 0x07,
-        DEVICE_SYSTEM_STATE = 0x0f,
-
-        DEVICE_CONSOLE_VECTOR_HI = 0x10,
-        DEVICE_CONSOLE_VECTOR_LO = 0x11,
-        DEVICE_CONSOLE_READ = 0x12,
-        DEVICE_CONSOLE_STTY = 0x14,
-        DEVICE_CONSOLE_TYPE = 0x17,
-        DEVICE_CONSOLE_WRITE = 0x18,
-        DEVICE_CONSOLE_ERROR = 0x19,
     };
 
     /* Core */
